@@ -2,13 +2,17 @@ package in.succinct.beckn.registry.controller;
 
 import com.venky.core.io.ByteArrayInputStream;
 import com.venky.core.io.SeekableByteArrayOutputStream;
+import com.venky.core.security.Crypt;
 import com.venky.core.util.ObjectUtil;
 import com.venky.swf.controller.ModelController;
 import com.venky.swf.controller.annotations.RequireLogin;
+import com.venky.swf.db.Database;
 import com.venky.swf.db.model.io.ModelIOFactory;
 import com.venky.swf.integration.FormatHelper;
 import com.venky.swf.integration.FormatHelper.KeyCase;
+import com.venky.swf.integration.IntegrationAdaptor;
 import com.venky.swf.path.Path;
+import com.venky.swf.plugins.collab.db.model.CryptoKey;
 import com.venky.swf.plugins.lucene.index.LuceneIndexer;
 import com.venky.swf.sql.Conjunction;
 import com.venky.swf.sql.Expression;
@@ -16,16 +20,20 @@ import com.venky.swf.sql.Operator;
 import com.venky.swf.sql.Select;
 import com.venky.swf.views.BytesView;
 import com.venky.swf.views.View;
+import in.succinct.beckn.Request;
 import in.succinct.beckn.registry.db.model.Subscriber;
 import org.apache.lucene.search.Query;
+import org.apache.regexp.RE;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
 
 import java.io.InputStreamReader;
+import java.security.KeyPair;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 
 public class SubscribersController extends ModelController<Subscriber> {
@@ -113,4 +121,26 @@ public class SubscribersController extends ModelController<Subscriber> {
 
     }
 
+    @RequireLogin(false)
+    public View generateSignatureKeys(){
+        CryptoKey key = Database.getTable(CryptoKey.class).newRecord();
+
+        String[] pair = CryptoKey.generateKeyPair(Request.SIGNATURE_ALGO,Request.SIGNATURE_ALGO_KEY_LENGTH);
+        key.setPrivateKey(pair[0]);
+        key.setPublicKey(pair[1]);
+        return IntegrationAdaptor.instance(CryptoKey.class,getIntegrationAdaptor().getFormatClass()).
+                createResponse(getPath(),key, Arrays.asList("PUBLIC_KEY","PRIVATE_KEY"));
+
+    }
+    @RequireLogin(false)
+    public View generateEncryptionKeys(){
+        CryptoKey key = Database.getTable(CryptoKey.class).newRecord();
+
+        String[] pair = CryptoKey.generateKeyPair(Request.ENCRYPTION_ALGO,Request.ENCRYPTION_ALGO_KEY_LENGTH);
+        key.setPrivateKey(pair[0]);
+        key.setPublicKey(pair[1]);
+        return IntegrationAdaptor.instance(CryptoKey.class,getIntegrationAdaptor().getFormatClass()).
+                createResponse(getPath(),key, Arrays.asList("PUBLIC_KEY","PRIVATE_KEY"));
+
+    }
 }
