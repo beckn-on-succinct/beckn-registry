@@ -2,7 +2,6 @@ package in.succinct.beckn.registry.controller;
 
 import com.venky.core.io.ByteArrayInputStream;
 import com.venky.core.io.SeekableByteArrayOutputStream;
-import com.venky.core.security.Crypt;
 import com.venky.core.util.ObjectUtil;
 import com.venky.swf.controller.ModelController;
 import com.venky.swf.controller.annotations.RequireLogin;
@@ -23,17 +22,14 @@ import com.venky.swf.views.View;
 import in.succinct.beckn.Request;
 import in.succinct.beckn.registry.db.model.Subscriber;
 import org.apache.lucene.search.Query;
-import org.apache.regexp.RE;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
 
 import java.io.InputStreamReader;
-import java.security.KeyPair;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.List;
 
 public class SubscribersController extends ModelController<Subscriber> {
@@ -47,8 +43,9 @@ public class SubscribersController extends ModelController<Subscriber> {
         FormatHelper.instance(object).change_key_case(KeyCase.CAMEL);
 
         Subscriber subscriber = ModelIOFactory.getReader(Subscriber.class,JSONObject.class).read(object);
-        if (subscriber.getRawRecord().isNewRecord()){
+        if (subscriber.getRawRecord().isNewRecord() || subscriber.isDirty() ){
             subscriber.setStatus("INITIATED");
+            // My be you need to do ip based validation to prevent DOS attacks.
         }
         subscriber.setUpdated(new Timestamp(System.currentTimeMillis()));
         subscriber.save();
@@ -62,48 +59,7 @@ public class SubscribersController extends ModelController<Subscriber> {
         FormatHelper.instance(object).change_key_case(KeyCase.CAMEL);
 
         Subscriber criteria = ModelIOFactory.getReader(Subscriber.class,JSONObject.class).read(object);
-
-        StringBuilder searchQry = new StringBuilder();
-
-
-        if (!criteria.getReflector().isVoid(criteria.getSubscriberId())){
-            searchQry.append("SUBSCRIBER_ID:").append(criteria.getSubscriberId().replace(".","\\."));
-        }
-        if (!criteria.getReflector().isVoid(criteria.getCityId())){
-            if (searchQry.length() > 0){
-                searchQry.append(" AND ");
-            }
-            searchQry.append(" ( CITY_ID:").append(criteria.getCityId()).append(" OR CITY_ID:NULL ) ");
-        }
-        if (!criteria.getReflector().isVoid(criteria.getCountryId())){
-            if (searchQry.length() > 0){
-                searchQry.append(" AND ");
-            }
-            searchQry.append(" COUNTRY_ID:").append(criteria.getCountryId());
-        }
-        if (!criteria.getReflector().isVoid(criteria.getType())){
-            if (searchQry.length() > 0){
-                searchQry.append(" AND ");
-            }
-            searchQry.append(" ( TYPE:").append(criteria.getType()).append( " OR TYPE:NULL ) ");
-        }
-        if (!criteria.getReflector().isVoid(criteria.getDomain())){
-            if (searchQry.length() > 0){
-                searchQry.append(" AND ");
-            }
-            searchQry.append(" DOMAIN:").append(criteria.getDomain());
-        }
-        LuceneIndexer indexer = LuceneIndexer.instance(getModelClass());
-        Query q = indexer.constructQuery(searchQry.toString());
-
-        List<Long> ids = indexer.findIds(q, Select.MAX_RECORDS_ALL_RECORDS);
-        List<Subscriber> records = new ArrayList<>();
-        if (!ids.isEmpty()) {
-            Select sel = new Select().from(getModelClass()).where(new Expression(getReflector().getPool(), Conjunction.AND)
-                    .add(Expression.createExpression(getReflector().getPool(), "ID", Operator.IN, ids.toArray()))
-                    .add(getWhereClause())).orderBy("TYPE DESC , CITY_ID DESC ");
-            records = sel.execute(getModelClass(), MAX_LIST_RECORDS);
-        }
+        List<Subscriber> records = Subscriber.lookup(criteria,MAX_LIST_RECORDS,getWhereClause());
 
         SeekableByteArrayOutputStream baos = new SeekableByteArrayOutputStream();
         ModelIOFactory.getWriter(getModelClass(),getReturnIntegrationAdaptor().getFormatClass()).write(records,baos,Arrays.asList("SUBSCRIBER_ID","SUBSCRIBER_URL","TYPE","DOMAIN",
@@ -143,4 +99,5 @@ public class SubscribersController extends ModelController<Subscriber> {
                 createResponse(getPath(),key, Arrays.asList("PUBLIC_KEY","PRIVATE_KEY"));
 
     }
+
 }

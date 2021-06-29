@@ -87,7 +87,7 @@ public class AppInstaller implements Installer {
         subscriber = Database.getTable(Subscriber.class).getRefreshed(subscriber);
         if (subscriber.getRawRecord().isNewRecord()){
             subscriber.setStatus("SUBSCRIBED");
-            subscriber.setSubscriberUrl(subscriber.getSubscriberId()+"/subscribers");
+            subscriber.setSubscriberUrl(Config.instance().getServerBaseUrl()+"/subscribers");
             subscriber.setDomain("local-retail");
             subscriber.setCityId(findByCountryAndStateAndName("India","Karnataka","Bengaluru").getId());
             subscriber.setCountryId(Country.findByName("India").getId());

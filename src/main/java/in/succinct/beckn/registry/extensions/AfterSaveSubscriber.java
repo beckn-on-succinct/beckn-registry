@@ -27,7 +27,9 @@ public class AfterSaveSubscriber extends AfterModelSaveExtension<Subscriber> {
     }
     @Override
     public void afterSave(Subscriber subscriber) {
-        TaskManager.instance().executeAsync(new OnSubscribe(subscriber),false);
+        if (ObjectUtil.equals("INITIATED",subscriber.getStatus()) && !ObjectUtil.isVoid(subscriber.getSigningPublicKey()) && !ObjectUtil.isVoid(subscriber.getEncrPublicKey())){
+            TaskManager.instance().executeAsync(new OnSubscribe(subscriber),false);
+        }
     }
 
     public static class OnSubscribe implements Task {
