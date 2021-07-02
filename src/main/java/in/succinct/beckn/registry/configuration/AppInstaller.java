@@ -83,14 +83,14 @@ public class AppInstaller implements Installer {
 
         Subscriber subscriber = Database.getTable(Subscriber.class).newRecord();
         subscriber.setSubscriberId(Config.instance().getHostName());
-        subscriber.setType("lreg");
+        subscriber.setCountryId(Country.findByName("India").getId());
+        subscriber.setCityId(findByCountryAndStateAndName("India","Karnataka","Bengaluru").getId());
         subscriber = Database.getTable(Subscriber.class).getRefreshed(subscriber);
         if (subscriber.getRawRecord().isNewRecord()){
+            subscriber.setType("lreg");
             subscriber.setStatus("SUBSCRIBED");
             subscriber.setSubscriberUrl(Config.instance().getServerBaseUrl()+"/subscribers");
             subscriber.setDomain("local-retail");
-            subscriber.setCityId(findByCountryAndStateAndName("India","Karnataka","Bengaluru").getId());
-            subscriber.setCountryId(Country.findByName("India").getId());
             subscriber.setSigningPublicKey(key.getPublicKey());
             subscriber.setEncrPublicKey(encryptionKey.getPublicKey());
             subscriber.setValidFrom(new Timestamp(System.currentTimeMillis()));

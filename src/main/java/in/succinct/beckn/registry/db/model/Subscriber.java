@@ -9,6 +9,8 @@ import com.venky.swf.db.annotations.column.UNIQUE_KEY;
 import com.venky.swf.db.annotations.column.defaulting.StandardDefault;
 import com.venky.swf.db.annotations.column.indexing.Index;
 import com.venky.swf.db.annotations.column.validations.Enumeration;
+import com.venky.swf.db.annotations.model.HAS_DESCRIPTION_FIELD;
+import com.venky.swf.db.annotations.model.MENU;
 import com.venky.swf.db.model.Model;
 import com.venky.swf.db.model.reflection.ModelReflector;
 import com.venky.swf.plugins.collab.db.model.config.City;
@@ -24,6 +26,8 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 
+@HAS_DESCRIPTION_FIELD("SUBSCRIBER_ID")
+@MENU("Admin")
 public interface Subscriber extends Model {
     @UNIQUE_KEY
     @Index
@@ -40,7 +44,7 @@ public interface Subscriber extends Model {
 
     @Index
     @IS_NULLABLE
-    @UNIQUE_KEY
+    @UNIQUE_KEY(allowMultipleRecordsWithNull = false)
     public Long getCityId();
     public void setCityId(Long id);
     public City getCity();
@@ -103,7 +107,7 @@ public interface Subscriber extends Model {
         StringBuilder searchQry = new StringBuilder();
 
         if (!criteria.getReflector().isVoid(criteria.getSubscriberId())){
-            searchQry.append("SUBSCRIBER_ID:").append(criteria.getSubscriberId().replace(".","\\."));
+            searchQry.append("SUBSCRIBER_ID:\"").append(criteria.getSubscriberId()).append("\"");
         }
         if (!criteria.getReflector().isVoid(criteria.getCityId())){
             if (searchQry.length() > 0){

@@ -6,6 +6,7 @@ import com.venky.core.util.ObjectUtil;
 import com.venky.swf.controller.ModelController;
 import com.venky.swf.controller.annotations.RequireLogin;
 import com.venky.swf.db.Database;
+import com.venky.swf.db.model.Count;
 import com.venky.swf.db.model.io.ModelIOFactory;
 import com.venky.swf.integration.FormatHelper;
 import com.venky.swf.integration.FormatHelper.KeyCase;
@@ -20,6 +21,8 @@ import com.venky.swf.sql.Select;
 import com.venky.swf.views.BytesView;
 import com.venky.swf.views.View;
 import in.succinct.beckn.Request;
+import in.succinct.beckn.registry.db.model.City;
+import in.succinct.beckn.registry.db.model.Country;
 import in.succinct.beckn.registry.db.model.Subscriber;
 import org.apache.lucene.search.Query;
 import org.json.simple.JSONArray;
@@ -40,9 +43,30 @@ public class SubscribersController extends ModelController<Subscriber> {
     @RequireLogin(false)
     public <T> View subscribe() throws Exception{
         JSONObject object = (JSONObject) JSONValue.parse(new InputStreamReader(getPath().getInputStream()));
-        FormatHelper.instance(object).change_key_case(KeyCase.CAMEL);
+        FormatHelper<JSONObject> helper = FormatHelper.instance(object);
+
+        helper.change_key_case(KeyCase.CAMEL);
+        String countryCode = helper.getAttribute("Country");
+        Country country = null;
+        if (countryCode != null){
+            country = Database.getTable(Country.class).newRecord();
+            country.setCode(countryCode);
+            country = Database.getTable(Country.class).getRefreshed(country);
+            helper.removeAttribute("Country");
+            helper.setAttribute("CountryId",String.valueOf(country.getId()));
+        }
+        String cityCode = helper.getAttribute("City");
+        City city = null;
+        if (cityCode != null){
+            city = Database.getTable(City.class).newRecord();
+            city.setCode(cityCode);
+            city = Database.getTable(City.class).getRefreshed(city);
+            helper.removeAttribute("City");
+            helper.setAttribute("CityId", String.valueOf(city.getId()));
+        }
 
         Subscriber subscriber = ModelIOFactory.getReader(Subscriber.class,JSONObject.class).read(object);
+
         if (subscriber.getRawRecord().isNewRecord() || subscriber.isDirty() ){
             subscriber.setStatus("INITIATED");
             // My be you need to do ip based validation to prevent DOS attacks.
