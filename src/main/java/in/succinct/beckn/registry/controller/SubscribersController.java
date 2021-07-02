@@ -80,7 +80,27 @@ public class SubscribersController extends ModelController<Subscriber> {
     @RequireLogin(false)
     public <T> View lookup() throws Exception{
         JSONObject object = (JSONObject) JSONValue.parse(new InputStreamReader(getPath().getInputStream()));
-        FormatHelper.instance(object).change_key_case(KeyCase.CAMEL);
+        FormatHelper<JSONObject> helper = FormatHelper.instance(object);
+        helper.change_key_case(KeyCase.CAMEL);
+
+        String countryCode = helper.getAttribute("Country");
+        Country country = null;
+        if (countryCode != null){
+            country = Database.getTable(Country.class).newRecord();
+            country.setCode(countryCode);
+            country = Database.getTable(Country.class).getRefreshed(country);
+            helper.removeAttribute("Country");
+            helper.setAttribute("CountryId",String.valueOf(country.getId()));
+        }
+        String cityCode = helper.getAttribute("City");
+        City city = null;
+        if (cityCode != null){
+            city = Database.getTable(City.class).newRecord();
+            city.setCode(cityCode);
+            city = Database.getTable(City.class).getRefreshed(city);
+            helper.removeAttribute("City");
+            helper.setAttribute("CityId", String.valueOf(city.getId()));
+        }
 
         Subscriber criteria = ModelIOFactory.getReader(Subscriber.class,JSONObject.class).read(object);
         List<Subscriber> records = Subscriber.lookup(criteria,MAX_LIST_RECORDS,getWhereClause());
