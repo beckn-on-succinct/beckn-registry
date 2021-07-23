@@ -28,7 +28,7 @@ public class AppInstaller implements Installer {
     private void insertDefaultCities() {
         Country country = Database.getTable(Country.class).newRecord();
         country.setName("India");
-        country.setIsoCode("IN");
+        country.setIsoCode("IND");
         country = Database.getTable(Country.class).getRefreshed(country);
         if (country.getRawRecord().isNewRecord()){
             country.save();
@@ -44,7 +44,7 @@ public class AppInstaller implements Installer {
         City city = Database.getTable(City.class).newRecord();
         city.setName("Bengaluru");
         city.setStateId(state.getId());
-        city.setCode("080");
+        city.setCode("std:080");
         city = Database.getTable(City.class).getRefreshed(city);
         if (city.getRawRecord().isNewRecord()) {
             city.save();
@@ -90,7 +90,7 @@ public class AppInstaller implements Installer {
             subscriber.setType("lreg");
             subscriber.setStatus("SUBSCRIBED");
             subscriber.setSubscriberUrl(Config.instance().getServerBaseUrl()+"/subscribers");
-            subscriber.setDomain("local-retail");
+            subscriber.setDomain("nic2004:52110");
             subscriber.setSigningPublicKey(key.getPublicKey());
             subscriber.setEncrPublicKey(encryptionKey.getPublicKey());
             subscriber.setValidFrom(new Timestamp(System.currentTimeMillis()));

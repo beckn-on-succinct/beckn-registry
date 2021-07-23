@@ -105,20 +105,30 @@ public interface Subscriber extends Model {
     }
     public static List<Subscriber> lookup(Subscriber criteria, int maxRecords, Expression additionalWhere){
         StringBuilder searchQry = new StringBuilder();
+        Expression where = new Expression(criteria.getReflector().getPool(),Conjunction.AND);
+        if (additionalWhere != null){
+            where.add(additionalWhere);
+        }
 
         if (!criteria.getReflector().isVoid(criteria.getSubscriberId())){
             searchQry.append("SUBSCRIBER_ID:\"").append(criteria.getSubscriberId()).append("\"");
+            where.add(new Expression(criteria.getReflector().getPool(), "SUBSCRIBER_ID", Operator.EQ , criteria.getSubscriberId()));
         }
         if (!criteria.getReflector().isVoid(criteria.getCityId())){
             if (searchQry.length() > 0){
                 searchQry.append(" AND ");
             }
             searchQry.append(" ( CITY_ID:").append(criteria.getCityId()).append(" OR CITY_ID:NULL ) ");
+            Expression cityWhere = new Expression(criteria.getReflector().getPool(),Conjunction.OR);
+            cityWhere.add(new Expression(criteria.getReflector().getPool(), "CITY_ID", Operator.EQ , criteria.getCityId()));
+            cityWhere.add(new Expression(criteria.getReflector().getPool(),"CITY_ID",Operator.EQ));
+            where.add(cityWhere);
         }
         if (!criteria.getReflector().isVoid(criteria.getCountryId())){
             if (searchQry.length() > 0){
                 searchQry.append(" AND ");
             }
+            where.add(new Expression(criteria.getReflector().getPool(), "COUNTRY_ID", Operator.EQ , criteria.getCountryId()));
             searchQry.append(" COUNTRY_ID:").append(criteria.getCountryId());
         }
         if (!criteria.getReflector().isVoid(criteria.getType())){
@@ -126,12 +136,25 @@ public interface Subscriber extends Model {
                 searchQry.append(" AND ");
             }
             searchQry.append(" ( TYPE:").append(criteria.getType()).append( " OR TYPE:NULL ) ");
+
+            Expression typeWhere = new Expression(criteria.getReflector().getPool(),Conjunction.OR);
+            typeWhere.add(new Expression(criteria.getReflector().getPool(), "TYPE", Operator.EQ , criteria.getType()));
+            typeWhere.add(new Expression(criteria.getReflector().getPool(),"TYPE",Operator.EQ));
+            where.add(typeWhere);
         }
         if (!criteria.getReflector().isVoid(criteria.getDomain())){
             if (searchQry.length() > 0){
                 searchQry.append(" AND ");
             }
-            searchQry.append(" DOMAIN:").append(criteria.getDomain());
+            searchQry.append(" DOMAIN:\"").append(criteria.getDomain()).append("\"");
+            where.add(new Expression(criteria.getReflector().getPool(), "DOMAIN", Operator.EQ , criteria.getDomain()));
+        }
+        if (!criteria.getReflector().isVoid(criteria.getStatus())){
+            if (searchQry.length() > 0){
+                searchQry.append(" AND ");
+            }
+            searchQry.append(" STATUS:\"").append(criteria.getStatus()).append("\"");
+            where.add(new Expression(criteria.getReflector().getPool(), "STATUS", Operator.EQ , criteria.getStatus()));
         }
         LuceneIndexer indexer = LuceneIndexer.instance(Subscriber.class);
         Query q = indexer.constructQuery(searchQry.toString());
@@ -140,10 +163,7 @@ public interface Subscriber extends Model {
         List<Subscriber> records = new ArrayList<>();
         if (!ids.isEmpty()) {
             ModelReflector<Subscriber> ref = ModelReflector.instance(Subscriber.class);
-            Expression where = Expression.createExpression(ref.getPool(), "ID", Operator.IN, ids.toArray());
-            if (additionalWhere != null){
-                where.add(additionalWhere);
-            }
+            where.add(Expression.createExpression(ref.getPool(), "ID", Operator.IN, ids.toArray()));
             Select sel = new Select().from(Subscriber.class).where(new Expression(ref.getPool(), Conjunction.AND)
                     .add(where)).orderBy("TYPE DESC , CITY_ID DESC ");
             records = sel.execute(Subscriber.class, maxRecords);

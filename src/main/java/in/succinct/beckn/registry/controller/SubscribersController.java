@@ -2,6 +2,7 @@ package in.succinct.beckn.registry.controller;
 
 import com.venky.core.io.ByteArrayInputStream;
 import com.venky.core.io.SeekableByteArrayOutputStream;
+import com.venky.core.string.StringUtil;
 import com.venky.core.util.ObjectUtil;
 import com.venky.swf.controller.ModelController;
 import com.venky.swf.controller.annotations.RequireLogin;
@@ -14,17 +15,21 @@ import com.venky.swf.integration.IntegrationAdaptor;
 import com.venky.swf.path.Path;
 import com.venky.swf.plugins.collab.db.model.CryptoKey;
 import com.venky.swf.plugins.lucene.index.LuceneIndexer;
+import com.venky.swf.routing.Config;
 import com.venky.swf.sql.Conjunction;
 import com.venky.swf.sql.Expression;
 import com.venky.swf.sql.Operator;
 import com.venky.swf.sql.Select;
 import com.venky.swf.views.BytesView;
 import com.venky.swf.views.View;
+import in.succinct.beckn.Location;
 import in.succinct.beckn.Request;
 import in.succinct.beckn.registry.db.model.City;
 import in.succinct.beckn.registry.db.model.Country;
 import in.succinct.beckn.registry.db.model.Subscriber;
+import in.succinct.beckn.registry.db.model.SubscriberLocation;
 import org.apache.lucene.search.Query;
+import org.apache.regexp.RE;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
@@ -34,6 +39,7 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 public class SubscribersController extends ModelController<Subscriber> {
     public SubscribersController(Path path) {
@@ -144,4 +150,37 @@ public class SubscribersController extends ModelController<Subscriber> {
 
     }
 
+    @RequireLogin(false)
+    public View register_location() throws  Exception{
+        String payload = StringUtil.read(getPath().getInputStream());
+
+        Location location = new Location(payload);
+
+        String subscriberId = null;
+        if (Config.instance().getBooleanProperty("beckn.auth.enabled", false)){
+            Request request = new Request(payload);
+            if (request.verifySignature("Authorization",getPath().getHeaders())){
+                Map<String, String> authParams = request.extractAuthorizationParams("Authorization",getPath().getHeaders());
+                subscriberId = request.getSubscriberId(authParams);
+            }
+        }else {
+            String  providerLocationID = location.getId();
+            int fromIndex = providerLocationID.lastIndexOf("@");
+            int toIndex = providerLocationID.lastIndexOf(".provider_location");
+            subscriberId = providerLocationID.substring(fromIndex+1,toIndex);
+        }
+        if (subscriberId == null){
+            throw new RuntimeException("Could not identify subscriber!");
+        }
+        Subscriber criteria = Database.getTable(Subscriber.class).newRecord();
+        criteria.setSubscriberId(subscriberId);
+        criteria.setCityId(com.venky.swf.plugins.collab.db.model.config.City.fi);
+        SubscriberLocation subscriberLocation = Database.getTable(SubscriberLocation.class).newRecord();
+        subscriberLocation.setSubscriberId(subscriberId);
+
+        //TODO Register location.
+        return null;
+
+
+    }
 }
