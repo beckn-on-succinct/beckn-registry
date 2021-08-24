@@ -103,7 +103,15 @@ public interface Subscriber extends Model {
     public static List<Subscriber> lookup(Subscriber criteria, int maxRecords){
         return lookup(criteria,maxRecords,null);
     }
-    public static List<Subscriber> lookup(Subscriber criteria, int maxRecords, Expression additionalWhere){
+    public static List<Subscriber> lookup(Subscriber criteria, int maxRecords, Expression additionalWhere) {
+        return lookup(criteria,maxRecords,additionalWhere,SubscriberWithLocations.BOTH);
+    }
+    enum SubscriberWithLocations {
+        YES,
+        NO,
+        BOTH
+    }
+    public static List<Subscriber> lookup(Subscriber criteria, int maxRecords, Expression additionalWhere, SubscriberWithLocations subscriberWithLocations) {
         StringBuilder searchQry = new StringBuilder();
         Expression where = new Expression(criteria.getReflector().getPool(),Conjunction.AND);
         if (additionalWhere != null){
@@ -164,8 +172,18 @@ public interface Subscriber extends Model {
         if (!ids.isEmpty()) {
             ModelReflector<Subscriber> ref = ModelReflector.instance(Subscriber.class);
             where.add(Expression.createExpression(ref.getPool(), "ID", Operator.IN, ids.toArray()));
-            Select sel = new Select().from(Subscriber.class).where(new Expression(ref.getPool(), Conjunction.AND)
-                    .add(where)).orderBy("TYPE DESC , CITY_ID DESC ");
+            Select sel = new Select().from(Subscriber.class).where(where);
+            switch (subscriberWithLocations){
+                case NO:
+                    sel.add(" and not exists (select 1 from subscriber_locations where subscriber_id = subscribers.id )");
+                    break;
+                case YES:
+                    sel.add(" and exists (select 1 from subscriber_locations where subscriber_id = subscribers.id )");
+                    break;
+                default:
+                    break;
+            }
+            sel.orderBy("TYPE DESC , CITY_ID DESC ");
             records = sel.execute(Subscriber.class, maxRecords);
         }
         return records;
