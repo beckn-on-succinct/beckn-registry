@@ -14,10 +14,15 @@ import com.venky.swf.plugins.collab.db.model.CryptoKey;
 import com.venky.swf.routing.Config;
 import in.succinct.beckn.Request;
 import in.succinct.beckn.registry.db.model.Subscriber;
+import org.bouncycastle.cert.ocsp.Req;
+import org.bouncycastle.jcajce.spec.XDHParameterSpec;
 import org.json.simple.JSONObject;
 
 import javax.crypto.Cipher;
+import javax.crypto.KeyAgreement;
+import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.util.Base64;
 
@@ -47,11 +52,17 @@ public class AfterSaveSubscriber extends AfterModelSaveExtension<Subscriber> {
                 otp.append(Randomizer.getRandomNumber(i == 0 ? 1 : 0, 9));
             }
             try {
-                PublicKey key = Crypt.getInstance().getPublicKey(Crypt.KEY_ALGO,subscriber.getEncrPublicKey());
-                Cipher cipher = Cipher.getInstance("RSA");
-                cipher.init(Cipher.ENCRYPT_MODE,key);
-                byte[] encrypted = cipher.doFinal(otp.toString().getBytes(StandardCharsets.UTF_8));
-                input.put("challenge", Base64.getEncoder().encodeToString(encrypted));
+                PublicKey key = Crypt.getInstance().getPublicKey(Request.ENCRYPTION_ALGO,subscriber.getEncrPublicKey());
+                CryptoKey cryptoKey = CryptoKey.find(Config.instance().getHostName() + ".encrypt.k1");
+                PrivateKey privateKey = Crypt.getInstance().getPrivateKey(Request.ENCRYPTION_ALGO,cryptoKey.getPrivateKey());
+
+                KeyAgreement agreement = KeyAgreement.getInstance(Request.ENCRYPTION_ALGO);
+                agreement.init(privateKey);
+                agreement.doPhase(key,true);
+                SecretKey symKey = agreement.generateSecret("TlsPremasterSecret");
+
+                String encrypted = Crypt.getInstance().encrypt(otp.toString(),"AES",symKey);
+                input.put("challenge", encrypted);
 
 
                 JSONObject response = new Call<JSONObject>().url(subscriber.getSubscriberUrl() + "/on_subscribe")
@@ -73,4 +84,5 @@ public class AfterSaveSubscriber extends AfterModelSaveExtension<Subscriber> {
         }
 
     }
+
 }

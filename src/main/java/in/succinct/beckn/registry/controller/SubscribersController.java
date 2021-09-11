@@ -3,6 +3,7 @@ package in.succinct.beckn.registry.controller;
 import com.venky.core.io.ByteArrayInputStream;
 import com.venky.core.io.SeekableByteArrayOutputStream;
 import com.venky.core.string.StringUtil;
+import com.venky.core.util.ObjectUtil;
 import com.venky.geo.GeoCoordinate;
 import com.venky.swf.controller.ModelController;
 import com.venky.swf.controller.annotations.RequireLogin;
@@ -97,6 +98,9 @@ public class SubscribersController extends ModelController<Subscriber> {
             city = Database.getTable(City.class).getRefreshed(city);
             helper.removeAttribute("City");
             helper.setAttribute("CityId", String.valueOf(city.getId()));
+        }
+        if (ObjectUtil.isVoid(helper.getAttribute("Status"))){
+            helper.setAttribute("Status",Subscriber.SUBSCRIBER_STATUS_SUBSCRIBED);
         }
 
         Subscriber criteria = ModelIOFactory.getReader(Subscriber.class,JSONObject.class).read(object);

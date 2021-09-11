@@ -4,16 +4,14 @@ import com.venky.core.security.Crypt;
 import com.venky.swf.configuration.Installer;
 import com.venky.swf.db.Database;
 import com.venky.swf.plugins.collab.db.model.CryptoKey;
-
 import com.venky.swf.plugins.collab.db.model.config.Country;
 import com.venky.swf.plugins.collab.db.model.config.State;
 import com.venky.swf.routing.Config;
+import in.succinct.beckn.Request;
 import in.succinct.beckn.registry.db.model.City;
 import in.succinct.beckn.registry.db.model.Subscriber;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 import java.security.KeyPair;
-import java.security.Security;
 import java.sql.Timestamp;
 
 import static com.venky.swf.plugins.collab.db.model.config.City.findByCountryAndStateAndName;
@@ -56,16 +54,12 @@ public class AppInstaller implements Installer {
 
 
     private void generateBecknKeys() {
-        if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
-            Security.addProvider(new BouncyCastleProvider());
-        }
-
 
         CryptoKey key = Database.getTable(CryptoKey.class).newRecord();
         key.setAlias(Config.instance().getHostName() + ".k1");
         key = Database.getTable(CryptoKey.class).getRefreshed(key);
         if (key.getRawRecord().isNewRecord()){
-            KeyPair pair = Crypt.getInstance().generateKeyPair("Ed25519",256);
+            KeyPair pair = Crypt.getInstance().generateKeyPair(Request.SIGNATURE_ALGO,Request.SIGNATURE_ALGO_KEY_LENGTH);
             key.setPrivateKey(Crypt.getInstance().getBase64Encoded(pair.getPrivate()));
             key.setPublicKey(Crypt.getInstance().getBase64Encoded(pair.getPublic()));
             key.save();
@@ -75,7 +69,7 @@ public class AppInstaller implements Installer {
         encryptionKey.setAlias(Config.instance().getHostName() + ".encrypt.k1");
         encryptionKey = Database.getTable(CryptoKey.class).getRefreshed(encryptionKey);
         if (encryptionKey.getRawRecord().isNewRecord()){
-            KeyPair pair = Crypt.getInstance().generateKeyPair(Crypt.KEY_ALGO,2048);
+            KeyPair pair = Crypt.getInstance().generateKeyPair(Request.ENCRYPTION_ALGO,Request.ENCRYPTION_ALGO_KEY_LENGTH);
             encryptionKey.setPrivateKey(Crypt.getInstance().getBase64Encoded(pair.getPrivate()));
             encryptionKey.setPublicKey(Crypt.getInstance().getBase64Encoded(pair.getPublic()));
             encryptionKey.save();
