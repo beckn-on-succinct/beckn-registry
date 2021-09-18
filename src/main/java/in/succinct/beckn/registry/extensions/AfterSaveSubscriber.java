@@ -52,7 +52,7 @@ public class AfterSaveSubscriber extends AfterModelSaveExtension<Subscriber> {
                 otp.append(Randomizer.getRandomNumber(i == 0 ? 1 : 0, 9));
             }
             try {
-                PublicKey key = Crypt.getInstance().getPublicKey(Request.ENCRYPTION_ALGO,subscriber.getEncrPublicKey());
+                PublicKey key = Request.getEncryptionPublicKey(subscriber.getEncrPublicKey());
                 CryptoKey cryptoKey = CryptoKey.find(Config.instance().getHostName() + ".encrypt.k1");
                 PrivateKey privateKey = Crypt.getInstance().getPrivateKey(Request.ENCRYPTION_ALGO,cryptoKey.getPrivateKey());
 
