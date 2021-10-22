@@ -146,7 +146,7 @@ public interface Subscriber extends Model {
             searchQry.append(" ( TYPE:").append(criteria.getType()).append( " OR TYPE:NULL ) ");
 
             Expression typeWhere = new Expression(criteria.getReflector().getPool(),Conjunction.OR);
-            typeWhere.add(new Expression(criteria.getReflector().getPool(), "TYPE", Operator.EQ , criteria.getType()));
+            typeWhere.add(new Expression(criteria.getReflector().getPool(), "TYPE", Operator.EQ , criteria.getType().toLowerCase()));
             typeWhere.add(new Expression(criteria.getReflector().getPool(),"TYPE",Operator.EQ));
             where.add(typeWhere);
         }

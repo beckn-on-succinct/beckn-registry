@@ -1,5 +1,6 @@
 package in.succinct.beckn.registry.controller;
 
+import com.venky.core.date.DateUtils;
 import com.venky.core.io.ByteArrayInputStream;
 import com.venky.core.io.SeekableByteArrayOutputStream;
 import com.venky.core.string.StringUtil;
@@ -17,6 +18,7 @@ import com.venky.swf.plugins.collab.db.model.CryptoKey;
 import com.venky.swf.routing.Config;
 import com.venky.swf.views.BytesView;
 import com.venky.swf.views.View;
+import in.succinct.beckn.BecknObject;
 import in.succinct.beckn.Location;
 import in.succinct.beckn.Request;
 import in.succinct.beckn.registry.db.model.City;
@@ -29,6 +31,7 @@ import org.json.simple.JSONValue;
 
 import java.io.InputStreamReader;
 import java.sql.Timestamp;
+import java.text.DateFormat;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -115,8 +118,31 @@ public class SubscribersController extends ModelController<Subscriber> {
         outHelper.change_key_case(KeyCase.TITLE);
 
         List<T> subscribers = outHelper.getArrayElements("subscribers");
+        for (T subscriber : subscribers){
+            FormatHelper<T> sh = FormatHelper.instance(subscriber);
+            T cityElement = sh.getElementAttribute("city");
+            if (cityElement != null){
+                sh.removeAttribute("city");
+                sh.setAttribute("city",FormatHelper.instance(cityElement).getAttribute("code"));
+            }
+
+            T countryElement = sh.getElementAttribute("country");
+            if (countryElement != null){
+                sh.removeAttribute("country");
+                sh.setAttribute("country",FormatHelper.instance(countryElement).getAttribute("iso_code"));
+            }
+            for (String tsattr:  new String[]{"valid_from","valid_until","created","updated"}){
+                String attrValue = sh.getAttribute(tsattr);
+                DateFormat isoDateFormat = DateUtils.getFormat(DateUtils.ISO_DATE_TIME_FORMAT_STR);
+
+                if (!ObjectUtil.isVoid(attrValue)){
+                    sh.setAttribute(tsattr,BecknObject.TIMESTAMP_FORMAT.format(DateUtils.getDate(attrValue)));
+                }
+            }
+        }
         JSONArray array = new JSONArray();
         array.addAll(subscribers);
+
 
         return new BytesView(getPath(),array.toString().getBytes(),getReturnIntegrationAdaptor().getMimeType());
 
