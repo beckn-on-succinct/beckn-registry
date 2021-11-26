@@ -154,8 +154,11 @@ public interface Subscriber extends Model {
             if (searchQry.length() > 0){
                 searchQry.append(" AND ");
             }
-            searchQry.append(" DOMAIN:\"").append(criteria.getDomain()).append("\"");
-            where.add(new Expression(criteria.getReflector().getPool(), "DOMAIN", Operator.EQ , criteria.getDomain()));
+            searchQry.append(" ( DOMAIN:\"").append(criteria.getDomain()).append("\" OR DOMAIN:NULL )");
+            Expression domainWhere = new Expression(criteria.getReflector().getPool(), Conjunction.OR);
+            domainWhere.add(new Expression(criteria.getReflector().getPool(), "DOMAIN", Operator.EQ , criteria.getDomain()));
+            domainWhere.add(new Expression(criteria.getReflector().getPool(), "DOMAIN", Operator.EQ));
+            where.add(domainWhere);
         }
         if (!criteria.getReflector().isVoid(criteria.getStatus())){
             if (searchQry.length() > 0){
