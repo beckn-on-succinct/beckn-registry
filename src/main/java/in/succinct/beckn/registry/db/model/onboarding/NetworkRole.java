@@ -22,11 +22,13 @@ public interface NetworkRole extends Model {
 
     @HIDDEN
     @UNIQUE_KEY
+    @Index
     public Long getNetworkParticipantId();
     public void setNetworkParticipantId(Long id);
     public NetworkParticipant getNetworkParticipant();
 
     @UNIQUE_KEY
+    @Index
     public Long getNetworkDomainId();
     public void setNetworkDomainId(Long id);
     public NetworkDomain getNetworkDomain();

@@ -18,10 +18,12 @@ import com.venky.swf.sql.Expression;
 import com.venky.swf.sql.Operator;
 import com.venky.swf.sql.Select;
 import in.succinct.beckn.BecknObject;
+import in.succinct.beckn.registry.db.model.onboarding.NetworkDomain;
 import in.succinct.beckn.registry.db.model.onboarding.NetworkRole;
 import in.succinct.beckn.registry.db.model.onboarding.OperatingRegion;
 import in.succinct.beckn.registry.db.model.onboarding.ParticipantKey;
 import org.apache.lucene.search.Query;
+import org.bouncycastle.math.raw.Mod;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -99,32 +101,32 @@ public interface Subscriber extends Model , GeoLocation {
         //Check Reqion Queries.
         ModelReflector<OperatingRegion> ref = ModelReflector.instance(OperatingRegion.class);
         Expression where = new Expression(ref.getPool(), Conjunction.AND);
-        if (!criteria.getReflector().isVoid(criteria.getCity())) {
+        if (!ref.isVoid(criteria.getCity())) {
             City city = City.findByCode(criteria.getCity());
             if (city != null) {
-                Expression cityWhere = new Expression(criteria.getReflector().getPool(), Conjunction.OR);
-                cityWhere.add(new Expression(criteria.getReflector().getPool(), "CITY_ID", Operator.EQ, city.getId()));
-                cityWhere.add(new Expression(criteria.getReflector().getPool(), "CITY_ID", Operator.EQ));
+                Expression cityWhere = new Expression(ref.getPool(), Conjunction.OR);
+                cityWhere.add(new Expression(ref.getPool(), "CITY_ID", Operator.EQ, city.getId()));
+                cityWhere.add(new Expression(ref.getPool(), "CITY_ID", Operator.EQ));
                 where.add(cityWhere);
             }
         }
-        if (!criteria.getReflector().isVoid(criteria.getCountry())) {
+        if (!ref.isVoid(criteria.getCountry())) {
             Country country = Country.findByISO(criteria.getCountry());
             if (country != null) {
-                where.add(new Expression(criteria.getReflector().getPool(), "COUNTRY_ID", Operator.EQ, country.getId()));
+                where.add(new Expression(ref.getPool(), "COUNTRY_ID", Operator.EQ, country.getId()));
             }
         }
-        if (!criteria.getReflector().isVoid(criteria.getLat()) && !criteria.getReflector().isVoid(criteria.getLng())){
-            Expression locationWhere = new Expression(criteria.getReflector().getPool(),Conjunction.OR);
-            Expression gridWhere = new Expression(criteria.getReflector().getPool(),Conjunction.AND);
-            gridWhere.add(new Expression(criteria.getReflector().getPool(),"MIN_LAT", Operator.LE, criteria.getLat()));
-            gridWhere.add(new Expression(criteria.getReflector().getPool(),"MAX_LAT", Operator.GE, criteria.getLat()));
-            gridWhere.add(new Expression(criteria.getReflector().getPool(),"MIN_LNG", Operator.LE, criteria.getLng()));
-            gridWhere.add(new Expression(criteria.getReflector().getPool(),"MAX_LNG", Operator.GE, criteria.getLng()));
+        if (!ref.isVoid(criteria.getLat()) && !ref.isVoid(criteria.getLng())){
+            Expression locationWhere = new Expression(ref.getPool(),Conjunction.OR);
+            Expression gridWhere = new Expression(ref.getPool(),Conjunction.AND);
+            gridWhere.add(new Expression(ref.getPool(),"MIN_LAT", Operator.LE, criteria.getLat()));
+            gridWhere.add(new Expression(ref.getPool(),"MAX_LAT", Operator.GE, criteria.getLat()));
+            gridWhere.add(new Expression(ref.getPool(),"MIN_LNG", Operator.LE, criteria.getLng()));
+            gridWhere.add(new Expression(ref.getPool(),"MAX_LNG", Operator.GE, criteria.getLng()));
             locationWhere.add(gridWhere);
-            locationWhere.add(new Expression(criteria.getReflector().getPool(),"LAT", Operator.EQ));
-            locationWhere.add(new Expression(criteria.getReflector().getPool(),"LNG", Operator.EQ));
-            if (!criteria.getReflector().isVoid(criteria.getRadius())){
+            locationWhere.add(new Expression(ref.getPool(),"LAT", Operator.EQ));
+            locationWhere.add(new Expression(ref.getPool(),"LNG", Operator.EQ));
+            if (!ref.isVoid(criteria.getRadius())){
                 Expression boundWhere = new BoundingBox(new GeoCoordinate(criteria),1.0, criteria.getRadius()).getWhereClause(OperatingRegion.class);
                 locationWhere.add(boundWhere);
             }
@@ -135,59 +137,71 @@ public interface Subscriber extends Model , GeoLocation {
         return sel.execute(OperatingRegion.class);
     }
     public static List<Subscriber> lookup(Subscriber criteria, int maxRecords, Expression additionalWhere) {
+        ParticipantKey key = ParticipantKey.find(criteria.getUniqueKeyId());;
+
+        ModelReflector<NetworkRole> ref = ModelReflector.instance(NetworkRole.class);
+
         StringBuilder searchQry = new StringBuilder();
-        Expression where = new Expression(criteria.getReflector().getPool(), Conjunction.AND);
+        Expression where = new Expression(ref.getPool(), Conjunction.AND);
         if (additionalWhere != null) {
             where.add(additionalWhere);
         }
 
-        if (!criteria.getReflector().isVoid(criteria.getSubscriberId())) {
+        if (!ref.isVoid(criteria.getSubscriberId())) {
             searchQry.append("SUBSCRIBER_ID:\"").append(criteria.getSubscriberId()).append("\"");
-            where.add(new Expression(criteria.getReflector().getPool(), "SUBSCRIBER_ID", Operator.EQ, criteria.getSubscriberId()));
+            where.add(new Expression(ref.getPool(), "SUBSCRIBER_ID", Operator.EQ, criteria.getSubscriberId()));
+        }
+        if (key != null){
+            searchQry.append("NETWORK_PARTICIPANT_ID:\"").append(key.getNetworkParticipantId()).append("\"");
+            where.add(new Expression(ref.getPool(), "NETWORK_PARTICIPANT_ID", Operator.EQ, key.getNetworkParticipantId()));
         }
 
-        if (!criteria.getReflector().isVoid(criteria.getType())) {
+        if (!ref.isVoid(criteria.getType())) {
             if (searchQry.length() > 0) {
                 searchQry.append(" AND ");
             }
             searchQry.append(" ( TYPE:").append(criteria.getType()).append(" OR TYPE:NULL ) ");
 
-            Expression typeWhere = new Expression(criteria.getReflector().getPool(), Conjunction.OR);
-            typeWhere.add(new Expression(criteria.getReflector().getPool(), "TYPE", Operator.EQ, criteria.getType().toLowerCase()));
-            typeWhere.add(new Expression(criteria.getReflector().getPool(), "TYPE", Operator.EQ));
+            Expression typeWhere = new Expression(ref.getPool(), Conjunction.OR);
+            typeWhere.add(new Expression(ref.getPool(), "TYPE", Operator.EQ, criteria.getType().toLowerCase()));
+            typeWhere.add(new Expression(ref.getPool(), "TYPE", Operator.EQ));
             where.add(typeWhere);
         }
-        if (!criteria.getReflector().isVoid(criteria.getDomain())) {
+        if (!ref.isVoid(criteria.getDomain())) {
+            NetworkDomain domain = NetworkDomain.find(criteria.getDomain());
             if (searchQry.length() > 0) {
                 searchQry.append(" AND ");
             }
-            searchQry.append(" ( DOMAIN:\"").append(criteria.getDomain()).append("\" OR DOMAIN:NULL )");
-            Expression domainWhere = new Expression(criteria.getReflector().getPool(), Conjunction.OR);
-            domainWhere.add(new Expression(criteria.getReflector().getPool(), "DOMAIN", Operator.EQ, criteria.getDomain()));
-            domainWhere.add(new Expression(criteria.getReflector().getPool(), "DOMAIN", Operator.EQ));
+            searchQry.append(" ( NETWORK_DOMAIN_ID:\"").append(domain.getId()).append("\" OR DOMAIN:NULL )");
+            Expression domainWhere = new Expression(ref.getPool(), Conjunction.OR);
+            domainWhere.add(new Expression(ref.getPool(), "NETWORK_DOMAIN_ID", Operator.EQ, domain.getId()));
+            domainWhere.add(new Expression(ref.getPool(), "NETWORK_DOMAIN_ID", Operator.EQ));
             where.add(domainWhere);
         }
-        if (!criteria.getReflector().isVoid(criteria.getStatus())) {
+        if (!ref.isVoid(criteria.getStatus())) {
             if (searchQry.length() > 0) {
                 searchQry.append(" AND ");
             }
             searchQry.append(" STATUS:\"").append(criteria.getStatus()).append("\"");
-            where.add(new Expression(criteria.getReflector().getPool(), "STATUS", Operator.EQ, criteria.getStatus()));
+            where.add(new Expression(ref.getPool(), "STATUS", Operator.EQ, criteria.getStatus()));
         }
-        LuceneIndexer indexer = LuceneIndexer.instance(NetworkRole.class);
-        Query q = indexer.constructQuery(searchQry.toString());
-
-        List<Long> ids = indexer.findIds(q, Select.MAX_RECORDS_ALL_RECORDS);
-        where.add(Expression.createExpression(ModelReflector.instance(NetworkRole.class).getPool(), "ID", Operator.IN, ids.toArray()));
-
-
-        Select okSelectNetworkRole = new Select().from(NetworkRole.class).where(where);
-        okSelectNetworkRole.add(" and not exists ( select 1 from operating_regions where network_role_id = network_roles.id) ");
-        List<NetworkRole> okroles = okSelectNetworkRole.execute();
 
         List<Subscriber> subscribers = new ArrayList<>();
-        for (NetworkRole role : okroles) {
-            subscribers.add(getSubscriber(criteria,role,null));
+        if (searchQry.length() > 0){
+            LuceneIndexer indexer = LuceneIndexer.instance(NetworkRole.class);
+            Query q = indexer.constructQuery(searchQry.toString());
+
+            List<Long> ids = indexer.findIds(q, Select.MAX_RECORDS_ALL_RECORDS);
+            where.add(Expression.createExpression(ModelReflector.instance(NetworkRole.class).getPool(), "ID", Operator.IN, ids.toArray()));
+
+
+            Select okSelectNetworkRole = new Select().from(NetworkRole.class).where(where);
+            okSelectNetworkRole.add(" and not exists ( select 1 from operating_regions where network_role_id = network_roles.id) ");
+            List<NetworkRole> okroles = okSelectNetworkRole.execute();
+
+            for (NetworkRole role : okroles) {
+                subscribers.add(getSubscriber(key,role,null));
+            }
         }
 
         List<OperatingRegion> subscribedRegions = findSubscribedRegions(criteria);
@@ -203,22 +217,26 @@ public interface Subscriber extends Model , GeoLocation {
         }
         if (!matchingRegionsCache.isEmpty()){
             List<NetworkRole> regionMatchingSubscriptions = new Select().from(NetworkRole.class).
-                    where(new Expression(ModelReflector.instance(NetworkRole.class).getPool(),"ID",Operator.IN,matchingRegionsCache.keySet().toArray())).execute();
+                    where(new Expression(ModelReflector.instance(NetworkRole.class).getPool(),"ID",Operator.IN,
+                            matchingRegionsCache.keySet().toArray())).execute();
+
             regionMatchingSubscriptions.forEach(networkRole -> {
                 matchingRegionsCache.get(networkRole.getId()).forEach(region->{
-                    subscribers.add(getSubscriber(criteria,networkRole,region));
+                    subscribers.add(getSubscriber(key,networkRole,region));
                 });
             });
-
-
         }
+
 
         return subscribers;
     }
-    static Subscriber getSubscriber(Subscriber criteria, NetworkRole networkRole, OperatingRegion region) {
-        List<ParticipantKey> keys = null;
-        if (!ObjectUtil.isVoid(criteria.getUniqueKeyId())){
-            keys = new Select().from(ParticipantKey.class).where(new Expression(ModelReflector.instance(ParticipantKey.class).getPool(),"KEY_ID",Operator.EQ,criteria.getUniqueKeyId())).execute();
+    static Subscriber getSubscriber( ParticipantKey criteriaKey , NetworkRole networkRole, OperatingRegion region) {
+        ParticipantKey key = null;
+
+        List<ParticipantKey> keys ;
+        if (criteriaKey != null){
+            keys = new ArrayList<>();
+            keys.add(criteriaKey);
         }else {
             keys = networkRole.getNetworkParticipant().getParticipantKeys();
             long now = System.currentTimeMillis();
@@ -228,10 +246,8 @@ public interface Subscriber extends Model , GeoLocation {
         if (keys.isEmpty()){
             return null;
         }else {
-            return getSubscriber(keys.get(0),networkRole,region);
+            key = keys.get(0);
         }
-    }
-    static Subscriber getSubscriber(ParticipantKey key, NetworkRole networkRole, OperatingRegion region) {
         Subscriber subscriber = Database.getTable(Subscriber.class).newRecord();
         subscriber.setSubscriberId(networkRole.getSubscriberId());
         subscriber.setSubscriberUrl(networkRole.getUrl());
