@@ -10,9 +10,13 @@ public class BeforeValidateNetworkRole extends BeforeModelValidateExtension<Netw
     }
     @Override
     public void beforeValidate(NetworkRole model) {
+        String domain = "";
+        if (model.getNetworkDomain() != null){
+            domain = model.getNetworkDomain().getName();
+        }
         model.setSubscriberId(String.format("%s.%s.%s",
                 StringUtil.valueOf(model.getNetworkParticipant().getParticipantId()),
-                StringUtil.valueOf(model.getNetworkDomain().getName()),
+                StringUtil.valueOf(domain),
                 StringUtil.valueOf(model.getType())));
     }
 }

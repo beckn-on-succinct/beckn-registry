@@ -93,6 +93,7 @@ public interface Subscriber extends Model , GeoLocation {
         return lookup(criteria, maxRecords, null);
     }
 
+
     public static List<OperatingRegion> findSubscribedRegions(Subscriber criteria){
         if (ObjectUtil.isVoid(criteria.getCity()) && ObjectUtil.isVoid(criteria.getCountry()) &&
                 ( ObjectUtil.isVoid(criteria.getLat()) || ObjectUtil.isVoid(criteria.getLng()) )){
@@ -152,7 +153,10 @@ public interface Subscriber extends Model , GeoLocation {
             where.add(new Expression(ref.getPool(), "SUBSCRIBER_ID", Operator.EQ, criteria.getSubscriberId()));
         }
         if (key != null){
-            searchQry.append("NETWORK_PARTICIPANT_ID:\"").append(key.getNetworkParticipantId()).append("\"");
+            if (searchQry.length() > 0) {
+                searchQry.append(" AND ");
+            }
+            searchQry.append(" NETWORK_PARTICIPANT_ID:\"").append(key.getNetworkParticipantId()).append("\"");
             where.add(new Expression(ref.getPool(), "NETWORK_PARTICIPANT_ID", Operator.EQ, key.getNetworkParticipantId()));
         }
 
@@ -185,6 +189,11 @@ public interface Subscriber extends Model , GeoLocation {
             searchQry.append(" STATUS:\"").append(criteria.getStatus()).append("\"");
             where.add(new Expression(ref.getPool(), "STATUS", Operator.EQ, criteria.getStatus()));
         }
+        boolean regionPassed = true;
+        if (ObjectUtil.isVoid(criteria.getCity()) && ObjectUtil.isVoid(criteria.getCountry()) &&
+                ( ObjectUtil.isVoid(criteria.getLat()) || ObjectUtil.isVoid(criteria.getLng()) )){
+            regionPassed = false;
+        }
 
         List<Subscriber> subscribers = new ArrayList<>();
         if (searchQry.length() > 0){
@@ -196,35 +205,38 @@ public interface Subscriber extends Model , GeoLocation {
 
 
             Select okSelectNetworkRole = new Select().from(NetworkRole.class).where(where);
-            okSelectNetworkRole.add(" and not exists ( select 1 from operating_regions where network_role_id = network_roles.id) ");
+            if (regionPassed) {
+                okSelectNetworkRole.add(" and not exists ( select 1 from operating_regions where network_role_id = network_roles.id) ");
+            }
             List<NetworkRole> okroles = okSelectNetworkRole.execute();
 
             for (NetworkRole role : okroles) {
                 subscribers.add(getSubscriber(key,role,null));
             }
         }
+        if (regionPassed){
+            List<OperatingRegion> subscribedRegions = findSubscribedRegions(criteria);
+            Cache<Long,List<OperatingRegion>> matchingRegionsCache = new Cache<Long, List<OperatingRegion>>(0,0) {
+                @Override
+                protected List<OperatingRegion> getValue(Long networkRoleId) {
+                    return new ArrayList<>();
+                }
+            };
 
-        List<OperatingRegion> subscribedRegions = findSubscribedRegions(criteria);
-        Cache<Long,List<OperatingRegion>> matchingRegionsCache = new Cache<Long, List<OperatingRegion>>(0,0) {
-            @Override
-            protected List<OperatingRegion> getValue(Long networkRoleId) {
-                return new ArrayList<>();
+            for (OperatingRegion region : subscribedRegions) {
+                matchingRegionsCache.get(region.getNetworkRoleId()).add(region);
             }
-        };
+            if (!matchingRegionsCache.isEmpty()){
+                List<NetworkRole> regionMatchingSubscriptions = new Select().from(NetworkRole.class).
+                        where(new Expression(ModelReflector.instance(NetworkRole.class).getPool(),"ID",Operator.IN,
+                                matchingRegionsCache.keySet().toArray())).execute();
 
-        for (OperatingRegion region : subscribedRegions) {
-            matchingRegionsCache.get(region.getNetworkRoleId()).add(region);
-        }
-        if (!matchingRegionsCache.isEmpty()){
-            List<NetworkRole> regionMatchingSubscriptions = new Select().from(NetworkRole.class).
-                    where(new Expression(ModelReflector.instance(NetworkRole.class).getPool(),"ID",Operator.IN,
-                            matchingRegionsCache.keySet().toArray())).execute();
-
-            regionMatchingSubscriptions.forEach(networkRole -> {
-                matchingRegionsCache.get(networkRole.getId()).forEach(region->{
-                    subscribers.add(getSubscriber(key,networkRole,region));
+                regionMatchingSubscriptions.forEach(networkRole -> {
+                    matchingRegionsCache.get(networkRole.getId()).forEach(region->{
+                        subscribers.add(getSubscriber(key,networkRole,region));
+                    });
                 });
-            });
+            }
         }
 
 
