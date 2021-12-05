@@ -1,150 +1,150 @@
 package in.succinct.beckn.registry.controller;
 
-import com.venky.core.date.DateUtils;
-import com.venky.core.io.ByteArrayInputStream;
-import com.venky.core.io.SeekableByteArrayOutputStream;
 import com.venky.core.string.StringUtil;
 import com.venky.core.util.ObjectUtil;
 import com.venky.geo.GeoCoordinate;
 import com.venky.swf.controller.ModelController;
+import com.venky.swf.controller.VirtualModelController;
 import com.venky.swf.controller.annotations.RequireLogin;
 import com.venky.swf.db.Database;
-import com.venky.swf.db.model.io.ModelIOFactory;
-import com.venky.swf.integration.FormatHelper;
-import com.venky.swf.integration.FormatHelper.KeyCase;
 import com.venky.swf.integration.IntegrationAdaptor;
 import com.venky.swf.path.Path;
+import com.venky.swf.plugins.background.core.TaskManager;
 import com.venky.swf.plugins.collab.db.model.CryptoKey;
+import com.venky.swf.plugins.collab.db.model.config.City;
+import com.venky.swf.plugins.collab.db.model.config.Country;
 import com.venky.swf.routing.Config;
-import com.venky.swf.views.BytesView;
 import com.venky.swf.views.View;
 import in.succinct.beckn.BecknObject;
 import in.succinct.beckn.Location;
 import in.succinct.beckn.Request;
-import in.succinct.beckn.registry.db.model.City;
-import in.succinct.beckn.registry.db.model.Country;
 import in.succinct.beckn.registry.db.model.Subscriber;
-import in.succinct.beckn.registry.db.model.SubscriberLocation;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
-import org.json.simple.JSONValue;
+import in.succinct.beckn.registry.db.model.onboarding.NetworkRole;
+import in.succinct.beckn.registry.db.model.onboarding.OperatingRegion;
+import in.succinct.beckn.registry.db.model.onboarding.ParticipantKey;
+import in.succinct.beckn.registry.extensions.AfterSaveParticipantKey.OnSubscribe;
 
-import java.io.InputStreamReader;
 import java.sql.Timestamp;
-import java.text.DateFormat;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-public class SubscribersController extends ModelController<Subscriber> {
+public class SubscribersController extends VirtualModelController<Subscriber> {
     public SubscribersController(Path path) {
         super(path);
     }
 
     @RequireLogin(false)
     public <T> View subscribe() throws Exception{
-        JSONObject object = (JSONObject) JSONValue.parse(new InputStreamReader(getPath().getInputStream()));
-        FormatHelper<JSONObject> helper = FormatHelper.instance(object);
-
-        helper.change_key_case(KeyCase.CAMEL);
-        String countryCode = helper.getAttribute("Country");
-        Country country = null;
-        if (countryCode != null){
-            country = Database.getTable(Country.class).newRecord();
-            country.setCode(countryCode);
-            country = Database.getTable(Country.class).getRefreshed(country);
-            helper.removeAttribute("Country");
-            helper.setAttribute("CountryId",String.valueOf(country.getId()));
-        }
-        String cityCode = helper.getAttribute("City");
-        City city = null;
-        if (cityCode != null){
-            city = Database.getTable(City.class).newRecord();
-            city.setCode(cityCode);
-            city = Database.getTable(City.class).getRefreshed(city);
-            helper.removeAttribute("City");
-            helper.setAttribute("CityId", String.valueOf(city.getId()));
+        String payload = StringUtil.read(getPath().getInputStream());
+        Request request = new Request(payload);
+        Map<String,String> params = request.extractAuthorizationParams("Authorization",getPath().getHeaders());
+        if (params.isEmpty()){
+            throw new RuntimeException("Signature Verification failed");
         }
 
-        Subscriber subscriber = ModelIOFactory.getReader(Subscriber.class,JSONObject.class).read(object);
-
-        if (subscriber.getRawRecord().isNewRecord() || subscriber.isDirty() ){
-            subscriber.setStatus("INITIATED");
-            // My be you need to do ip based validation to prevent DOS attacks.
+        String unique_key_id = params.get("unique_key_id");
+        String subscriber_id = params.get("subscriber_id");
+        NetworkRole role =  NetworkRole.find(subscriber_id);
+        ParticipantKey signedWithKey = ParticipantKey.find(unique_key_id);
+        if (!signedWithKey.isVerified()){
+            throw new RuntimeException("Your signing key is not verified by the registrar! Please contact registrar or sign with a verified key.");
         }
-        subscriber.setUpdated(new Timestamp(System.currentTimeMillis()));
-        subscriber.save();
+        if (!ObjectUtil.equals(role.getNetworkParticipantId() ,signedWithKey.getNetworkParticipantId())){
+            throw new RuntimeException("Key signed with is not registered against you. Please contact registrar");
+        }
+        if (!request.verifySignature("Authorization",getPath().getHeaders(),true)){
+            throw new RuntimeException("Signature Verification failed");
+        }
 
-        return getReturnIntegrationAdaptor().createResponse(getPath(),subscriber, Arrays.asList("STATUS"));
+        List<Subscriber> subscribers = getIntegrationAdaptor().readRequest(getPath());
+        if (subscribers.isEmpty()){
+            if (!ObjectUtil.equals(role.getStatus(),NetworkRole.SUBSCRIBER_STATUS_SUBSCRIBED)){
+                TaskManager.instance().executeAsync(new OnSubscribe(role),false);
+            }
+            Subscriber subscriber = Database.getTable(Subscriber.class).newRecord();
+            subscriber.setStatus(role.getStatus());
+            return getReturnIntegrationAdaptor().createResponse(getPath(),subscriber,Arrays.asList("STATUS"));
+        }else {
+            for (Subscriber subscriber : subscribers){
+                if (!ObjectUtil.isVoid(subscriber.getSubscriberId())){
+                    if (!ObjectUtil.equals(subscriber.getSubscriberId(),role.getSubscriberId())){
+                        throw new RuntimeException("Cannot sign for a different subscriber!");
+                    }
+                }else{
+                    subscriber.setSubscriberId(role.getSubscriberId());
+                }
+
+                ParticipantKey newKey = null;
+                if (!ObjectUtil.isVoid(subscriber.getUniqueKeyId())){
+                    newKey = ParticipantKey.find(subscriber.getUniqueKeyId());
+                    if (!newKey.getRawRecord().isNewRecord()){
+                        throw new RuntimeException("Cannot modify a registered key. Please create a new key.");
+                    }
+                }
+                if (newKey != null && (newKey.getRawRecord().isNewRecord() || !newKey.isVerified())){
+                    newKey.setEncrPublicKey(subscriber.getEncrPublicKey());
+                    newKey.setSigningPublicKey(subscriber.getSigningPublicKey());
+                    newKey.setVerified(false);
+                    newKey.setNetworkParticipantId(role.getNetworkParticipantId());
+                    newKey.setValidFrom(new Timestamp(BecknObject.TIMESTAMP_FORMAT.parse(subscriber.getValidFrom()).getTime()));
+                    newKey.setValidUntil(new Timestamp(BecknObject.TIMESTAMP_FORMAT.parse(subscriber.getValidUntil()).getTime()));
+                    newKey.save();
+                    TaskManager.instance().executeAsync(new OnSubscribe(newKey),false);
+                }
+                if (!ObjectUtil.isVoid(subscriber.getSubscriberUrl())){
+                    role.setUrl(subscriber.getSubscriberUrl());
+                }
+                if (!ObjectUtil.isVoid(subscriber.getDomain()) && !ObjectUtil.equals(subscriber.getDomain(),role.getNetworkDomain().getName())){
+                    throw  new RuntimeException("Cannot change your domain!. you need to register with the registrar for the right domains.");
+                }
+                if (!ObjectUtil.isVoid(subscriber.getType()) && !ObjectUtil.equals(subscriber.getType(),role.getType())){
+                    throw  new RuntimeException("Cannot change your role/type!. you need to register with the registrar for the right roles you wish to participate in your domain.");
+                }
+                if (role.isDirty()){
+                    if (ObjectUtil.equals(role.getStatus(),NetworkRole.SUBSCRIBER_STATUS_SUBSCRIBED)){
+                        if (newKey != null){
+                            throw new RuntimeException("Cannot create a new  key and modify your subscription in the same call.");
+                        }
+                    }
+                    role.setStatus(NetworkRole.SUBSCRIBER_STATUS_INITIATED);
+                    role.save();
+                    TaskManager.instance().executeAsync(new OnSubscribe(role),false);
+                }
+                subscriber.setStatus(role.getStatus());
+                loadRegion(subscriber,role);
+            }
+            return getReturnIntegrationAdaptor().createResponse(getPath(),subscribers,Arrays.asList("STATUS"));
+        }
+
+    }
+    public void loadRegion(Subscriber subscriber,NetworkRole role){
+        OperatingRegion region = Database.getTable(OperatingRegion.class).newRecord();
+        region.setNetworkRoleId(role.getId());
+        if (!ObjectUtil.isVoid(subscriber.getCity())){
+            region.setCityId(City.findByCode(subscriber.getCity()).getId());
+            region.setCountryId(region.getCity().getState().getCountryId());
+        }else if (!ObjectUtil.isVoid(subscriber.getCountry())){
+            region.setCountryId(Country.findByISO(subscriber.getCountry()).getId());
+        }
+        if (!ObjectUtil.isVoid(subscriber.getLat()) && !ObjectUtil.isVoid(subscriber.getLng()) && !ObjectUtil.isVoid(subscriber.getRadius()) ) {
+            region.setLat(subscriber.getLat());
+            region.setLng(subscriber.getLng());
+            region.setRadius(subscriber.getRadius());
+        }
+        region = Database.getTable(OperatingRegion.class).getRefreshed(region);
+        region.save();
+
     }
 
     @RequireLogin(false)
-    public <T> View lookup() throws Exception{
-        JSONObject object = (JSONObject) JSONValue.parse(new InputStreamReader(getPath().getInputStream()));
-        FormatHelper<JSONObject> helper = FormatHelper.instance(object);
-        helper.change_key_case(KeyCase.CAMEL);
+    public <T> View lookup(){
+        List<Subscriber> subscribers = getIntegrationAdaptor().readRequest(getPath());
 
-        String countryCode = helper.getAttribute("Country");
-        Country country = null;
-        if (countryCode != null){
-            country = Database.getTable(Country.class).newRecord();
-            country.setCode(countryCode);
-            country = Database.getTable(Country.class).getRefreshed(country);
-            helper.removeAttribute("Country");
-            helper.setAttribute("CountryId",String.valueOf(country.getId()));
-        }
-        String cityCode = helper.getAttribute("City");
-        City city = null;
-        if (cityCode != null){
-            city = Database.getTable(City.class).newRecord();
-            city.setCode(cityCode);
-            city = Database.getTable(City.class).getRefreshed(city);
-            helper.removeAttribute("City");
-            helper.setAttribute("CityId", String.valueOf(city.getId()));
-        }
-        if (ObjectUtil.isVoid(helper.getAttribute("Status"))){
-            helper.setAttribute("Status",Subscriber.SUBSCRIBER_STATUS_SUBSCRIBED);
-        }
+        List<Subscriber> records = Subscriber.lookup(subscribers.get(0),MAX_LIST_RECORDS,getWhereClause());
 
-        Subscriber criteria = ModelIOFactory.getReader(Subscriber.class,JSONObject.class).read(object);
-        List<Subscriber> records = Subscriber.lookup(criteria,MAX_LIST_RECORDS,getWhereClause());
-
-        SeekableByteArrayOutputStream baos = new SeekableByteArrayOutputStream();
-        ModelIOFactory.getWriter(getModelClass(),getReturnIntegrationAdaptor().getFormatClass()).write(records,baos,Arrays.asList("SUBSCRIBER_ID","SUBSCRIBER_URL","TYPE","DOMAIN",
-                "CITY_ID","COUNTRY_ID","SIGNING_PUBLIC_KEY","ENCR_PUBLIC_KEY","VALID_FROM","VALID_UNTIL","STATUS","CREATED","UPDATED"));
-
-        ByteArrayInputStream bais = new ByteArrayInputStream(baos.toByteArray());
-        FormatHelper<T> outHelper = FormatHelper.instance(getIntegrationAdaptor().getMimeType(),bais);
-        outHelper.change_key_case(KeyCase.TITLE);
-
-        List<T> subscribers = outHelper.getArrayElements("subscribers");
-        for (T subscriber : subscribers){
-            FormatHelper<T> sh = FormatHelper.instance(subscriber);
-            T cityElement = sh.getElementAttribute("city");
-            if (cityElement != null){
-                sh.removeAttribute("city");
-                sh.setAttribute("city",FormatHelper.instance(cityElement).getAttribute("code"));
-            }
-
-            T countryElement = sh.getElementAttribute("country");
-            if (countryElement != null){
-                sh.removeAttribute("country");
-                sh.setAttribute("country",FormatHelper.instance(countryElement).getAttribute("iso_code"));
-            }
-            for (String tsattr:  new String[]{"valid_from","valid_until","created","updated"}){
-                String attrValue = sh.getAttribute(tsattr);
-                DateFormat isoDateFormat = DateUtils.getFormat(DateUtils.ISO_DATE_TIME_FORMAT_STR);
-
-                if (!ObjectUtil.isVoid(attrValue)){
-                    sh.setAttribute(tsattr,BecknObject.TIMESTAMP_FORMAT.format(DateUtils.getDate(attrValue)));
-                }
-            }
-        }
-        JSONArray array = new JSONArray();
-        array.addAll(subscribers);
-
-
-        return new BytesView(getPath(),array.toString().getBytes(),getReturnIntegrationAdaptor().getMimeType());
+        return getIntegrationAdaptor().createResponse(getPath(),records,Arrays.asList("KEY_ID","SUBSCRIBER_ID","SUBSCRIBER_URL","TYPE","DOMAIN",
+                "CITY","COUNTRY","SIGNING_PUBLIC_KEY","ENCR_PUBLIC_KEY","VALID_FROM","VALID_UNTIL","STATUS","CREATED","UPDATED"));
 
     }
 
@@ -189,58 +189,41 @@ public class SubscribersController extends ModelController<Subscriber> {
         }
 
         Map<String, String> authParams = request.extractAuthorizationParams("Authorization",getPath().getHeaders());
-        String subscriberId = request.getSubscriberId(authParams);
+        String subscriberId = Request.getSubscriberId(authParams);
         if (subscriberId == null) {
             throw new RuntimeException("Cannot identify Subscriber");
         }
+        NetworkRole networkRole = NetworkRole.find(subscriberId);
 
         Location location = new Location(payload);
 
-        Subscriber criteria = Database.getTable(Subscriber.class).newRecord();
-        criteria.setSubscriberId(subscriberId);
-        if (location.getCity() != null){
-            com.venky.swf.plugins.collab.db.model.config.City city =
-                    com.venky.swf.plugins.collab.db.model.config.City.findByCode(location.getCity().getCode());
-            if (city != null){
-                criteria.setCityId(city.getId());
-            }
-        }
+        OperatingRegion region = Database.getTable(OperatingRegion.class).newRecord();
+        region.setNetworkRoleId(networkRole.getId());
         if (location.getCountry() != null){
             com.venky.swf.plugins.collab.db.model.config.Country country = com.venky.swf.plugins.collab.db.model.config.Country.findByISO(location.getCountry().getCode());
             if (country != null){
-                criteria.setCountryId(country.getId());
+                region.setCountryId(country.getId());
             }
         }
-        criteria.setStatus(Subscriber.SUBSCRIBER_STATUS_SUBSCRIBED);
-
-        List<Subscriber> subscribers = Subscriber.lookup(criteria,0);
-
-        Subscriber subscriber = null;
-        if (subscribers.isEmpty()){
-            throw new RuntimeException("Cannot identify Subscriber");
-        }else if (subscribers.size() > 1){
-            throw new RuntimeException("Cannot identify Subscriber");
-        }else {
-            subscriber = subscribers.get(0);
+        if (location.getCity() != null) {
+            com.venky.swf.plugins.collab.db.model.config.City city =
+                    com.venky.swf.plugins.collab.db.model.config.City.findByCode(location.getCity().getCode());
+            if (city != null) {
+                region.setCityId(city.getId());
+                region.setCountryId(city.getState().getCountryId());
+            }
         }
-
-
-
-
-        SubscriberLocation subscriberLocation = Database.getTable(SubscriberLocation.class).newRecord();
-        subscriberLocation.setSubscriberId(subscriber.getId());
-        subscriberLocation.setProviderLocationId(location.getId());
-        subscriberLocation = Database.getTable(SubscriberLocation.class).getRefreshed(subscriberLocation);
-
-        GeoCoordinate gps = location.getGps();
-        subscriberLocation.setLat(gps.getLat());
-        subscriberLocation.setLng(gps.getLng());
+        GeoCoordinate coordinate = location.getGps();
+        if (coordinate != null){
+            region.setLat(coordinate.getLat());
+            region.setLng(coordinate.getLng());
+        }
         if (location.getCircle() != null){
-            subscriberLocation.setRadius(location.getCircle().getRadius());
+            region.setRadius(location.getCircle().getRadius());
         }
-        subscriberLocation.setActive(active);
-        subscriberLocation.save();
 
+        region = Database.getTable(OperatingRegion.class).getRefreshed(region);
+        region.save();
         return getIntegrationAdaptor().createStatusResponse(getPath(),null,"Location Information Updated!");
     }
 }
