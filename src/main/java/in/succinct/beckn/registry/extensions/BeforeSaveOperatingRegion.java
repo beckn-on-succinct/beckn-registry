@@ -3,7 +3,6 @@ package in.succinct.beckn.registry.extensions;
 import com.venky.geo.GeoCoordinate;
 import com.venky.swf.db.extensions.BeforeModelSaveExtension;
 import com.venky.swf.plugins.collab.util.BoundingBox;
-import in.succinct.beckn.registry.db.model.SubscriberLocation;
 import in.succinct.beckn.registry.db.model.onboarding.OperatingRegion;
 
 public class BeforeSaveOperatingRegion extends BeforeModelSaveExtension<OperatingRegion> {
