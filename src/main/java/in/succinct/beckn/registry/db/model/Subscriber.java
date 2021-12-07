@@ -97,9 +97,10 @@ public interface Subscriber extends Model , GeoLocation {
 
 
     public static List<OperatingRegion> findSubscribedRegions(Subscriber criteria, List<Long> networkRoleIds){
+        List<OperatingRegion> regions = new ArrayList<>();
         if (ObjectUtil.isVoid(criteria.getCity()) && ObjectUtil.isVoid(criteria.getCountry()) &&
                 ( ObjectUtil.isVoid(criteria.getLat()) || ObjectUtil.isVoid(criteria.getLng()) )){
-            return new ArrayList<>();
+            return regions;
         }
         //Check Reqion Queries.
         ModelReflector<OperatingRegion> ref = ModelReflector.instance(OperatingRegion.class);
@@ -111,12 +112,17 @@ public interface Subscriber extends Model , GeoLocation {
                 cityWhere.add(new Expression(ref.getPool(), "CITY_ID", Operator.EQ, city.getId()));
                 cityWhere.add(new Expression(ref.getPool(), "CITY_ID", Operator.EQ));
                 where.add(cityWhere);
+            }else {
+                return null;
             }
+
         }
         if (!ref.isVoid(criteria.getCountry())) {
             Country country = Country.findByISO(criteria.getCountry());
             if (country != null) {
                 where.add(new Expression(ref.getPool(), "COUNTRY_ID", Operator.EQ, country.getId()));
+            }else {
+                return null;
             }
         }
         if (!ref.isVoid(criteria.getLat()) && !ref.isVoid(criteria.getLng())){
@@ -144,6 +150,11 @@ public interface Subscriber extends Model , GeoLocation {
     }
     public static List<Subscriber> lookup(Subscriber criteria, int maxRecords, Expression additionalWhere) {
         ParticipantKey key = ObjectUtil.isVoid(criteria.getUniqueKeyId())? null : ParticipantKey.find(criteria.getUniqueKeyId());
+        if (key != null && key.getRawRecord().isNewRecord()){
+            //invalid key being looked up.
+            return new ArrayList<>();
+        }
+
 
         ModelReflector<NetworkRole> ref = ModelReflector.instance(NetworkRole.class);
 
@@ -157,7 +168,7 @@ public interface Subscriber extends Model , GeoLocation {
             searchQry.append("SUBSCRIBER_ID:\"").append(criteria.getSubscriberId()).append("\"");
             where.add(new Expression(ref.getPool(), "SUBSCRIBER_ID", Operator.EQ, criteria.getSubscriberId()));
         }
-        if (key != null){
+        if (key != null && !key.getReflector().isVoid(key.getNetworkParticipantId())){
             if (searchQry.length() > 0) {
                 searchQry.append(" AND ");
             }
@@ -222,16 +233,19 @@ public interface Subscriber extends Model , GeoLocation {
         }
         if (regionPassed){
             List<OperatingRegion> subscribedRegions = findSubscribedRegions(criteria,networkRoleIds);
-            Set<Long> finalNetworkRoleIds = subscribedRegions.stream().map(OperatingRegion::getNetworkRoleId).collect(Collectors.toSet());
+            if (subscribedRegions == null){
+                subscribers.clear();
+            }else {
+                Set<Long> finalNetworkRoleIds = subscribedRegions.stream().map(OperatingRegion::getNetworkRoleId).collect(Collectors.toSet());
 
-            List<NetworkRole> regionMatchingSubscriptions = new Select().from(NetworkRole.class).
-                    where(new Expression(ModelReflector.instance(NetworkRole.class).getPool(),"ID",Operator.IN,
-                            finalNetworkRoleIds.toArray())).execute();
+                List<NetworkRole> regionMatchingSubscriptions = new Select().from(NetworkRole.class).
+                        where(new Expression(ModelReflector.instance(NetworkRole.class).getPool(), "ID", Operator.IN,
+                                finalNetworkRoleIds.toArray())).execute();
 
-            regionMatchingSubscriptions.forEach(networkRole -> {
-                subscribers.add(getSubscriber(key,networkRole,null));
-            });
-
+                for (NetworkRole networkRole : regionMatchingSubscriptions) {
+                    subscribers.add(getSubscriber(key, networkRole, null));
+                }
+            }
         }
 
 
