@@ -7,10 +7,12 @@ import com.venky.swf.db.annotations.column.defaulting.StandardDefault;
 import com.venky.swf.db.annotations.column.indexing.Index;
 import com.venky.swf.db.annotations.column.ui.HIDDEN;
 import com.venky.swf.db.annotations.column.validations.Enumeration;
+import com.venky.swf.db.annotations.model.HAS_DESCRIPTION_FIELD;
 import com.venky.swf.db.model.Model;
 
 import java.util.List;
 
+@HAS_DESCRIPTION_FIELD("SUBSCRIBER_ID")
 public interface NetworkRole extends Model {
     static NetworkRole find(String subscriberId) {
 
@@ -27,7 +29,7 @@ public interface NetworkRole extends Model {
     public void setNetworkParticipantId(Long id);
     public NetworkParticipant getNetworkParticipant();
 
-    @UNIQUE_KEY
+    @UNIQUE_KEY(allowMultipleRecordsWithNull = false)
     @Index
     public Long getNetworkDomainId();
     public void setNetworkDomainId(Long id);
@@ -41,11 +43,11 @@ public interface NetworkRole extends Model {
     public static final String SUBSCRIBER_TYPE_ROOT_REGISTRY = "RREG";
     public static final String SUBSCRIBER_TYPE_BG = "BG";
 
+    public static final String SUBSCRIBER_ENUM = SUBSCRIBER_TYPE_BAP+"," +SUBSCRIBER_TYPE_BPP + ","  +
+            SUBSCRIBER_TYPE_LOCAL_REGISTRY + "," + SUBSCRIBER_TYPE_COUNTRY_REGISTRY + "," + SUBSCRIBER_TYPE_ROOT_REGISTRY + "," + SUBSCRIBER_TYPE_BG;
 
-
-    @Enumeration(SUBSCRIBER_TYPE_BAP+"," +SUBSCRIBER_TYPE_BPP + ","  +
-            SUBSCRIBER_TYPE_LOCAL_REGISTRY + "," + SUBSCRIBER_TYPE_COUNTRY_REGISTRY + "," + SUBSCRIBER_TYPE_ROOT_REGISTRY + "," + SUBSCRIBER_TYPE_BG )
-    @UNIQUE_KEY
+    @Enumeration( SUBSCRIBER_ENUM )
+    @UNIQUE_KEY(allowMultipleRecordsWithNull = false)
     @Index
     public String getType();
     public void setType(String type);

@@ -14,6 +14,7 @@ import com.venky.swf.plugins.background.core.TaskManager;
 import com.venky.swf.plugins.collab.db.model.CryptoKey;
 import com.venky.swf.routing.Config;
 import in.succinct.beckn.Request;
+import in.succinct.beckn.registry.db.model.Subscriber;
 import in.succinct.beckn.registry.db.model.onboarding.NetworkParticipant;
 import in.succinct.beckn.registry.db.model.onboarding.NetworkRole;
 import in.succinct.beckn.registry.db.model.onboarding.ParticipantKey;
@@ -40,81 +41,86 @@ public class AfterSaveParticipantKey extends AfterModelSaveExtension<Participant
     }
 
     public static class OnSubscribe implements Task {
-        NetworkRole subscriber;
+        NetworkRole role;
         ParticipantKey participantKey ;
 
         public OnSubscribe(ParticipantKey participantKey) {
             this.participantKey = participantKey;
-            this.subscriber = null;
+            this.role = null;
         }
 
-        public OnSubscribe(NetworkRole subscriber) {
-            this.subscriber = subscriber;
+        public OnSubscribe(NetworkRole role) {
+            this.role = role;
             this.participantKey = null;
         }
 
         @Override
         public void execute() {
-            if (this.subscriber == null && this.participantKey == null){
+            if (this.role == null && this.participantKey == null){
                 return;
             }
-            NetworkParticipant participant = subscriber != null ? subscriber.getNetworkParticipant() : participantKey.getNetworkParticipant();
+            NetworkParticipant participant = role != null ? role.getNetworkParticipant() : participantKey.getNetworkParticipant();
 
-            List<ParticipantKey> keys = participantKey != null ? new ArrayList<>(Arrays.asList(participantKey)) : participant.getParticipantKeys();
+            List<NetworkRole> subscribers = role != null ? new ArrayList<>(Arrays.asList(role)) : participant.getNetworkRoles();
 
-            if (keys.isEmpty()){
+            List<ParticipantKey> participantKeys = participantKey != null ? new ArrayList<>(Arrays.asList(participantKey)) : participant.getParticipantKeys();
+
+            if (participantKeys.isEmpty()){
                 throw new RuntimeException("No Keys configured!");
             }
-            if (ObjectUtil.equals(subscriber.getStatus(),NetworkRole.SUBSCRIBER_STATUS_SUBSCRIBED)){
-                keys.removeIf(ParticipantKey::isVerified);
-            }else {
-                keys.removeIf(k -> !k.isVerified());
-            }
-            Bucket numResponsesRemaining = new Bucket(keys.size());
-            for (ParticipantKey pk : keys) {
-                JSONObject input = new JSONObject();
-                input.put("subscriber_id", subscriber.getSubscriberId());
-                input.put("unique_key_id", pk.getKeyId());
-
-                StringBuilder otp = new StringBuilder();
-                for (int i = 0; i < 32; i++) {
-                    otp.append(Randomizer.getRandomNumber(i == 0 ? 1 : 0, 9));
-                }
-                try {
-                    PublicKey key = Request.getEncryptionPublicKey(pk.getEncrPublicKey());
-                    CryptoKey cryptoKey = CryptoKey.find(Config.instance().getHostName() + ".k1",CryptoKey.PURPOSE_ENCRYPTION);
-                    PrivateKey privateKey = Crypt.getInstance().getPrivateKey(Request.ENCRYPTION_ALGO, cryptoKey.getPrivateKey());
-
-                    KeyAgreement agreement = KeyAgreement.getInstance(Request.ENCRYPTION_ALGO);
-                    agreement.init(privateKey);
-                    agreement.doPhase(key, true);
-                    SecretKey symKey = agreement.generateSecret("TlsPremasterSecret");
-
-                    String encrypted = Crypt.getInstance().encrypt(otp.toString(), "AES", symKey);
-                    input.put("challenge", encrypted);
-
-                    JSONObject response = new Call<JSONObject>().url(subscriber.getUrl() + "/on_subscribe")
-                            .method(HttpMethod.POST).inputFormat(InputFormat.JSON).input(input)
-                            .header("Content-type", MimeType.APPLICATION_JSON.toString())
-                            .header("Signature", Request.generateSignature(input.toString(), CryptoKey.find(Config.instance().getHostName() + ".k1",CryptoKey.PURPOSE_SIGNING).getPrivateKey())).getResponseAsJson();
-
-                    if (ObjectUtil.equals(response.get("answer"), otp.toString())) {
-                        numResponsesRemaining.decrement();
-                    }
-
-
-                } catch (Exception ex) {
-                    throw new RuntimeException(ex);
-                }
-            }
-            if (numResponsesRemaining.intValue() == 0){
-                if (!ObjectUtil.equals(subscriber.getStatus(),NetworkRole.SUBSCRIBER_STATUS_SUBSCRIBED)){
-                    subscriber.setStatus(NetworkRole.SUBSCRIBER_STATUS_SUBSCRIBED);
-                    subscriber.save();
+            for (NetworkRole subscriber : subscribers){
+                List<ParticipantKey> keys = new ArrayList<>(participantKeys);
+                if (ObjectUtil.equals(subscriber.getStatus(),NetworkRole.SUBSCRIBER_STATUS_SUBSCRIBED)){
+                    keys.removeIf(ParticipantKey::isVerified);
                 }else {
-                    for (ParticipantKey key : keys){
-                        key.setVerified(true);
-                        key.save();
+                    keys.removeIf(k -> !k.isVerified());
+                }
+                Bucket numResponsesRemaining = new Bucket(keys.size());
+                for (ParticipantKey pk : keys) {
+                    JSONObject input = new JSONObject();
+                    input.put("subscriber_id", subscriber.getSubscriberId());
+                    input.put("unique_key_id", pk.getKeyId());
+
+                    StringBuilder otp = new StringBuilder();
+                    for (int i = 0; i < 32; i++) {
+                        otp.append(Randomizer.getRandomNumber(i == 0 ? 1 : 0, 9));
+                    }
+                    try {
+                        PublicKey key = Request.getEncryptionPublicKey(pk.getEncrPublicKey());
+                        CryptoKey cryptoKey = CryptoKey.find(Config.instance().getHostName() + ".k1",CryptoKey.PURPOSE_ENCRYPTION);
+                        PrivateKey privateKey = Crypt.getInstance().getPrivateKey(Request.ENCRYPTION_ALGO, cryptoKey.getPrivateKey());
+
+                        KeyAgreement agreement = KeyAgreement.getInstance(Request.ENCRYPTION_ALGO);
+                        agreement.init(privateKey);
+                        agreement.doPhase(key, true);
+                        SecretKey symKey = agreement.generateSecret("TlsPremasterSecret");
+
+                        String encrypted = Crypt.getInstance().encrypt(otp.toString(), "AES", symKey);
+                        input.put("challenge", encrypted);
+
+                        JSONObject response = new Call<JSONObject>().url(subscriber.getUrl() + "/on_subscribe")
+                                .method(HttpMethod.POST).inputFormat(InputFormat.JSON).input(input)
+                                .header("Content-type", MimeType.APPLICATION_JSON.toString())
+                                .header("Signature", Request.generateSignature(input.toString(), CryptoKey.find(Config.instance().getHostName() + ".k1",CryptoKey.PURPOSE_SIGNING).getPrivateKey())).getResponseAsJson();
+
+                        if (ObjectUtil.equals(response.get("answer"), otp.toString())) {
+                            numResponsesRemaining.decrement();
+                        }
+
+
+                    } catch (Exception ex) {
+                        throw new RuntimeException(ex);
+                    }
+                }
+                if (numResponsesRemaining.intValue() == 0){
+                    if (!ObjectUtil.equals(subscriber.getStatus(),NetworkRole.SUBSCRIBER_STATUS_SUBSCRIBED)){
+                        subscriber.setStatus(NetworkRole.SUBSCRIBER_STATUS_SUBSCRIBED);
+                        subscriber.save();
+                    }else {
+                        for (ParticipantKey key : keys){
+                            key.setVerified(true);
+                            key.save();
+                        }
                     }
                 }
             }

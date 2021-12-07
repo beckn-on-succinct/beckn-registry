@@ -14,8 +14,12 @@ public class BeforeValidateNetworkRole extends BeforeModelValidateExtension<Netw
         if (model.getNetworkDomain() != null){
             domain = model.getNetworkDomain().getName();
         }
+        String participantId = "";
+        if (model.getNetworkParticipantId() != null){
+            participantId = model.getNetworkParticipant().getParticipantId();
+        }
         model.setSubscriberId(String.format("%s.%s.%s",
-                StringUtil.valueOf(model.getNetworkParticipant().getParticipantId()),
+                StringUtil.valueOf(participantId),
                 StringUtil.valueOf(domain),
                 StringUtil.valueOf(model.getType())));
     }

@@ -38,11 +38,11 @@ public interface ParticipantKey extends Model {
     public String getEncrPublicKey();
     public void setEncrPublicKey(String key);
 
-    @IS_NULLABLE
+    @IS_NULLABLE(false)
     public Timestamp getValidFrom();
     public void setValidFrom(Timestamp from);
 
-    @IS_NULLABLE
+    @IS_NULLABLE(false)
     public Timestamp getValidUntil();
     public void setValidUntil(Timestamp until);
 

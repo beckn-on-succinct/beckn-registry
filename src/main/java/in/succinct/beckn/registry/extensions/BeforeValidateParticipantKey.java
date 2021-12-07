@@ -17,6 +17,11 @@ public class BeforeValidateParticipantKey extends BeforeModelValidateExtension<P
         if (!ObjectUtil.isVoid(participantKey.getSigningPublicKey())){
             participantKey.setSigningPublicKey(Request.getRawSigningKey(participantKey.getSigningPublicKey()));
         }
+        if (!ObjectUtil.isVoid(participantKey.getValidFrom()) && !ObjectUtil.isVoid(participantKey.getValidUntil())){
+            if (participantKey.getValidFrom().after(participantKey.getValidUntil())){
+                throw new RuntimeException("Valid Until date must be greater than Valid From date");
+            }
+        }
         // Useful to store in base64encoded raw format as this is what seems to be standard.
     }
 

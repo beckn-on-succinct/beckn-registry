@@ -15,13 +15,13 @@ public class SubscriberImpl extends ModelImpl<Subscriber> {
 
     public void subscribe(){
         Subscriber subscriber = getProxy();
-        if (ObjectUtil.isVoid(subscriber.getUniqueKeyId())){
+        if (!ObjectUtil.isVoid(subscriber.getUniqueKeyId())){
             ParticipantKey key = ParticipantKey.find(subscriber.getUniqueKeyId());
             if (key.getRawRecord().isNewRecord()){
                 key.setVerified(false);
                 key.save();
             }
-        }else if (ObjectUtil.isVoid(subscriber.getSubscriberId())){
+        }else if (!ObjectUtil.isVoid(subscriber.getSubscriberId())){
             NetworkRole role = NetworkRole.find(subscriber.getSubscriberId());
             if (role.getRawRecord().isNewRecord()){
                 throw new RuntimeException("On boarding is necessary before subscription.");

@@ -1,5 +1,7 @@
 package in.succinct.beckn.registry.controller;
 
+import com.venky.core.io.ByteArrayInputStream;
+import com.venky.core.io.SeekableByteArrayOutputStream;
 import com.venky.core.string.StringUtil;
 import com.venky.core.util.ObjectUtil;
 import com.venky.geo.GeoCoordinate;
@@ -7,13 +9,19 @@ import com.venky.swf.controller.ModelController;
 import com.venky.swf.controller.VirtualModelController;
 import com.venky.swf.controller.annotations.RequireLogin;
 import com.venky.swf.db.Database;
+import com.venky.swf.db.annotations.column.ui.mimes.MimeType;
+import com.venky.swf.db.model.io.ModelIOFactory;
+import com.venky.swf.integration.FormatHelper;
+import com.venky.swf.integration.FormatHelper.KeyCase;
 import com.venky.swf.integration.IntegrationAdaptor;
+import com.venky.swf.integration.JSON;
 import com.venky.swf.path.Path;
 import com.venky.swf.plugins.background.core.TaskManager;
 import com.venky.swf.plugins.collab.db.model.CryptoKey;
 import com.venky.swf.plugins.collab.db.model.config.City;
 import com.venky.swf.plugins.collab.db.model.config.Country;
 import com.venky.swf.routing.Config;
+import com.venky.swf.views.BytesView;
 import com.venky.swf.views.View;
 import in.succinct.beckn.BecknObject;
 import in.succinct.beckn.Location;
@@ -23,8 +31,13 @@ import in.succinct.beckn.registry.db.model.onboarding.NetworkRole;
 import in.succinct.beckn.registry.db.model.onboarding.OperatingRegion;
 import in.succinct.beckn.registry.db.model.onboarding.ParticipantKey;
 import in.succinct.beckn.registry.extensions.AfterSaveParticipantKey.OnSubscribe;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.JSONValue;
 
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -78,19 +91,41 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
                 ParticipantKey newKey = null;
                 if (!ObjectUtil.isVoid(subscriber.getUniqueKeyId())){
                     newKey = ParticipantKey.find(subscriber.getUniqueKeyId());
-                    if (!newKey.getRawRecord().isNewRecord()){
-                        throw new RuntimeException("Cannot modify a registered key. Please create a new key.");
-                    }
                 }
-                if (newKey != null && (newKey.getRawRecord().isNewRecord() || !newKey.isVerified())){
+                if (newKey != null){
+                    if (!ObjectUtil.isVoid(subscriber.getSigningPublicKey())) {
+                        newKey.setSigningPublicKey(subscriber.getSigningPublicKey());
+                    }
+                    if (!ObjectUtil.isVoid(subscriber.getEncrPublicKey())){
+                        newKey.setEncrPublicKey(subscriber.getEncrPublicKey());
+                    }
+
+                    if (!newKey.getRawRecord().isNewRecord() &&  newKey.isVerified()){
+                        if (newKey.isDirty()) {
+                            throw new RuntimeException("Cannot modify a verified registered key. Please create a new key.");
+                        }
+                    }else {
+                        newKey.setVerified(false);
+                    }
+                    newKey.setNetworkParticipantId(role.getNetworkParticipantId());
+                    if (!ObjectUtil.isVoid(subscriber.getValidFrom())){
+                        newKey.setValidFrom(new Timestamp(BecknObject.TIMESTAMP_FORMAT.parse(subscriber.getValidFrom()).getTime()));
+                    }
+                    if (!ObjectUtil.isVoid(subscriber.getValidUntil())){
+                        newKey.setValidUntil(new Timestamp(BecknObject.TIMESTAMP_FORMAT.parse(subscriber.getValidUntil()).getTime()));
+                    }
+                    if (newKey.getValidUntil() != null  && newKey.getValidUntil().getTime() <= System.currentTimeMillis()){
+                        newKey.setVerified(false);
+                    }
+                    newKey.save();
+                    TaskManager.instance().executeAsync(new OnSubscribe(newKey),false);
+
+                }
+                if (!newKey.isVerified()){
                     newKey.setEncrPublicKey(subscriber.getEncrPublicKey());
                     newKey.setSigningPublicKey(subscriber.getSigningPublicKey());
                     newKey.setVerified(false);
-                    newKey.setNetworkParticipantId(role.getNetworkParticipantId());
-                    newKey.setValidFrom(new Timestamp(BecknObject.TIMESTAMP_FORMAT.parse(subscriber.getValidFrom()).getTime()));
-                    newKey.setValidUntil(new Timestamp(BecknObject.TIMESTAMP_FORMAT.parse(subscriber.getValidUntil()).getTime()));
-                    newKey.save();
-                    TaskManager.instance().executeAsync(new OnSubscribe(newKey),false);
+
                 }
                 if (!ObjectUtil.isVoid(subscriber.getSubscriberUrl())){
                     role.setUrl(subscriber.getSubscriberUrl());
@@ -138,13 +173,23 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
     }
 
     @RequireLogin(false)
-    public <T> View lookup(){
-        List<Subscriber> subscribers = getIntegrationAdaptor().readRequest(getPath());
+    public <T> View lookup() throws Exception{
+        FormatHelper<T> helper = FormatHelper.instance(getPath().getProtocol(),getPath().getInputStream());
+        helper.change_key_case(KeyCase.CAMEL);
 
-        List<Subscriber> records = Subscriber.lookup(subscribers.get(0),MAX_LIST_RECORDS,getWhereClause());
+        Subscriber subscriber = ModelIOFactory.getReader(Subscriber.class, helper.getFormatClass()).read(helper.getRoot());
 
-        return getIntegrationAdaptor().createResponse(getPath(),records,Arrays.asList("KEY_ID","SUBSCRIBER_ID","SUBSCRIBER_URL","TYPE","DOMAIN",
-                "CITY","COUNTRY","SIGNING_PUBLIC_KEY","ENCR_PUBLIC_KEY","VALID_FROM","VALID_UNTIL","STATUS","CREATED","UPDATED"));
+        List<Subscriber> records = Subscriber.lookup(subscriber,MAX_LIST_RECORDS,getWhereClause());
+
+        List<String> fields = Arrays.asList("UNIQUE_KEY_ID","SUBSCRIBER_ID","SUBSCRIBER_URL","TYPE","DOMAIN",
+                "CITY","COUNTRY","SIGNING_PUBLIC_KEY","ENCR_PUBLIC_KEY","VALID_FROM","VALID_UNTIL","STATUS","CREATED","UPDATED");
+
+        FormatHelper<T> outHelper = FormatHelper.instance(helper.getMimeType(),StringUtil.pluralize(getModelClass().getSimpleName()),true);
+        ModelIOFactory.getWriter(getModelClass(),helper.getFormatClass()).write(records,outHelper.getRoot(),fields);
+        outHelper.change_key_case(KeyCase.TITLE);
+        JSONArray out = new JSONArray();
+        out.addAll(outHelper.getArrayElements("subscribers"));
+        return new BytesView(getPath(),out.toString().getBytes(),MimeType.APPLICATION_JSON);
 
     }
 

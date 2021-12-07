@@ -94,7 +94,7 @@ public interface Subscriber extends Model , GeoLocation {
     }
 
 
-    public static List<OperatingRegion> findSubscribedRegions(Subscriber criteria){
+    public static List<OperatingRegion> findSubscribedRegions(Subscriber criteria, List<Long> networkRoleIds){
         if (ObjectUtil.isVoid(criteria.getCity()) && ObjectUtil.isVoid(criteria.getCountry()) &&
                 ( ObjectUtil.isVoid(criteria.getLat()) || ObjectUtil.isVoid(criteria.getLng()) )){
             return new ArrayList<>();
@@ -133,12 +133,15 @@ public interface Subscriber extends Model , GeoLocation {
             }
             where.add(locationWhere);
         }
+        if (networkRoleIds != null) {
+            where.add(new Expression(ref.getPool(), "NETWORK_ROLE_ID", Operator.IN, networkRoleIds.toArray()));
+        }
 
         Select sel = new Select().from(OperatingRegion.class).where(where);
         return sel.execute(OperatingRegion.class);
     }
     public static List<Subscriber> lookup(Subscriber criteria, int maxRecords, Expression additionalWhere) {
-        ParticipantKey key = ParticipantKey.find(criteria.getUniqueKeyId());;
+        ParticipantKey key = ObjectUtil.isVoid(criteria.getUniqueKeyId())? null : ParticipantKey.find(criteria.getUniqueKeyId());
 
         ModelReflector<NetworkRole> ref = ModelReflector.instance(NetworkRole.class);
 
@@ -167,7 +170,7 @@ public interface Subscriber extends Model , GeoLocation {
             searchQry.append(" ( TYPE:").append(criteria.getType()).append(" OR TYPE:NULL ) ");
 
             Expression typeWhere = new Expression(ref.getPool(), Conjunction.OR);
-            typeWhere.add(new Expression(ref.getPool(), "TYPE", Operator.EQ, criteria.getType().toLowerCase()));
+            typeWhere.add(new Expression(ref.getPool(), "TYPE", Operator.EQ, criteria.getType()));
             typeWhere.add(new Expression(ref.getPool(), "TYPE", Operator.EQ));
             where.add(typeWhere);
         }
@@ -196,12 +199,13 @@ public interface Subscriber extends Model , GeoLocation {
         }
 
         List<Subscriber> subscribers = new ArrayList<>();
+        List<Long> networkRoleIds = null;
         if (searchQry.length() > 0){
             LuceneIndexer indexer = LuceneIndexer.instance(NetworkRole.class);
             Query q = indexer.constructQuery(searchQry.toString());
 
-            List<Long> ids = indexer.findIds(q, Select.MAX_RECORDS_ALL_RECORDS);
-            where.add(Expression.createExpression(ModelReflector.instance(NetworkRole.class).getPool(), "ID", Operator.IN, ids.toArray()));
+            networkRoleIds = indexer.findIds(q, Select.MAX_RECORDS_ALL_RECORDS);
+            where.add(Expression.createExpression(ModelReflector.instance(NetworkRole.class).getPool(), "ID", Operator.IN, networkRoleIds.toArray()));
 
 
             Select okSelectNetworkRole = new Select().from(NetworkRole.class).where(where);
@@ -215,7 +219,7 @@ public interface Subscriber extends Model , GeoLocation {
             }
         }
         if (regionPassed){
-            List<OperatingRegion> subscribedRegions = findSubscribedRegions(criteria);
+            List<OperatingRegion> subscribedRegions = findSubscribedRegions(criteria,networkRoleIds);
             Cache<Long,List<OperatingRegion>> matchingRegionsCache = new Cache<Long, List<OperatingRegion>>(0,0) {
                 @Override
                 protected List<OperatingRegion> getValue(Long networkRoleId) {
@@ -232,9 +236,7 @@ public interface Subscriber extends Model , GeoLocation {
                                 matchingRegionsCache.keySet().toArray())).execute();
 
                 regionMatchingSubscriptions.forEach(networkRole -> {
-                    matchingRegionsCache.get(networkRole.getId()).forEach(region->{
-                        subscribers.add(getSubscriber(key,networkRole,region));
-                    });
+                    subscribers.add(getSubscriber(key,networkRole,null));
                 });
             }
         }
@@ -252,7 +254,7 @@ public interface Subscriber extends Model , GeoLocation {
         }else {
             keys = networkRole.getNetworkParticipant().getParticipantKeys();
             long now = System.currentTimeMillis();
-            keys.removeIf(k -> k.getValidUntil().getTime() < now || k.getValidFrom().getTime() > now);// Remove expired keys and keys not yet become valid.
+            keys.removeIf(k -> !k.isVerified() || k.getValidUntil().getTime() < now || k.getValidFrom().getTime() > now);// Remove expired keys and keys not yet become valid.
             keys.sort((k1, k2) -> (int) DateUtils.compareToMillis(k2.getValidFrom(), k1.getValidFrom()));
         }
         if (keys.isEmpty()){
@@ -264,7 +266,10 @@ public interface Subscriber extends Model , GeoLocation {
         subscriber.setSubscriberId(networkRole.getSubscriberId());
         subscriber.setSubscriberUrl(networkRole.getUrl());
         subscriber.setStatus(networkRole.getStatus());
-        subscriber.setDomain(networkRole.getNetworkDomain().getName());
+        NetworkDomain networkDomain = networkRole.getNetworkDomain();
+        if ( networkDomain != null ) {
+            subscriber.setDomain(networkDomain.getName());
+        }
         subscriber.setType(networkRole.getType());
         subscriber.setSigningPublicKey(key.getSigningPublicKey());
         subscriber.setEncrPublicKey(key.getEncrPublicKey());
