@@ -27,6 +27,8 @@ import org.bouncycastle.math.raw.Mod;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 
 @IS_VIRTUAL
@@ -137,7 +139,7 @@ public interface Subscriber extends Model , GeoLocation {
             where.add(new Expression(ref.getPool(), "NETWORK_ROLE_ID", Operator.IN, networkRoleIds.toArray()));
         }
 
-        Select sel = new Select().from(OperatingRegion.class).where(where);
+        Select sel = new Select("MAX(ID) AS ID","NETWORK_ROLE_ID").from(OperatingRegion.class).where(where).groupBy("NETWORK_ROLE_ID");
         return sel.execute(OperatingRegion.class);
     }
     public static List<Subscriber> lookup(Subscriber criteria, int maxRecords, Expression additionalWhere) {
@@ -220,25 +222,16 @@ public interface Subscriber extends Model , GeoLocation {
         }
         if (regionPassed){
             List<OperatingRegion> subscribedRegions = findSubscribedRegions(criteria,networkRoleIds);
-            Cache<Long,List<OperatingRegion>> matchingRegionsCache = new Cache<Long, List<OperatingRegion>>(0,0) {
-                @Override
-                protected List<OperatingRegion> getValue(Long networkRoleId) {
-                    return new ArrayList<>();
-                }
-            };
+            Set<Long> finalNetworkRoleIds = subscribedRegions.stream().map(OperatingRegion::getNetworkRoleId).collect(Collectors.toSet());
 
-            for (OperatingRegion region : subscribedRegions) {
-                matchingRegionsCache.get(region.getNetworkRoleId()).add(region);
-            }
-            if (!matchingRegionsCache.isEmpty()){
-                List<NetworkRole> regionMatchingSubscriptions = new Select().from(NetworkRole.class).
-                        where(new Expression(ModelReflector.instance(NetworkRole.class).getPool(),"ID",Operator.IN,
-                                matchingRegionsCache.keySet().toArray())).execute();
+            List<NetworkRole> regionMatchingSubscriptions = new Select().from(NetworkRole.class).
+                    where(new Expression(ModelReflector.instance(NetworkRole.class).getPool(),"ID",Operator.IN,
+                            finalNetworkRoleIds.toArray())).execute();
 
-                regionMatchingSubscriptions.forEach(networkRole -> {
-                    subscribers.add(getSubscriber(key,networkRole,null));
-                });
-            }
+            regionMatchingSubscriptions.forEach(networkRole -> {
+                subscribers.add(getSubscriber(key,networkRole,null));
+            });
+
         }
 
 
