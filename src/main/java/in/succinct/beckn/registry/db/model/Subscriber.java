@@ -192,7 +192,7 @@ public interface Subscriber extends Model , GeoLocation {
             if (searchQry.length() > 0) {
                 searchQry.append(" AND ");
             }
-            searchQry.append(" ( NETWORK_DOMAIN_ID:\"").append(domain.getId()).append("\" OR DOMAIN:NULL )");
+            searchQry.append(" ( NETWORK_DOMAIN_ID:\"").append(domain.getId()).append("\" OR NETWORK_DOMAIN_ID:NULL )");
             Expression domainWhere = new Expression(ref.getPool(), Conjunction.OR);
             domainWhere.add(new Expression(ref.getPool(), "NETWORK_DOMAIN_ID", Operator.EQ, domain.getId()));
             domainWhere.add(new Expression(ref.getPool(), "NETWORK_DOMAIN_ID", Operator.EQ));
