@@ -1,11 +1,8 @@
 package in.succinct.beckn.registry.controller;
 
-import com.venky.core.io.ByteArrayInputStream;
-import com.venky.core.io.SeekableByteArrayOutputStream;
 import com.venky.core.string.StringUtil;
 import com.venky.core.util.ObjectUtil;
 import com.venky.geo.GeoCoordinate;
-import com.venky.swf.controller.ModelController;
 import com.venky.swf.controller.VirtualModelController;
 import com.venky.swf.controller.annotations.RequireLogin;
 import com.venky.swf.db.Database;
@@ -14,7 +11,6 @@ import com.venky.swf.db.model.io.ModelIOFactory;
 import com.venky.swf.integration.FormatHelper;
 import com.venky.swf.integration.FormatHelper.KeyCase;
 import com.venky.swf.integration.IntegrationAdaptor;
-import com.venky.swf.integration.JSON;
 import com.venky.swf.path.Path;
 import com.venky.swf.plugins.background.core.TaskManager;
 import com.venky.swf.plugins.collab.db.model.CryptoKey;
@@ -32,12 +28,8 @@ import in.succinct.beckn.registry.db.model.onboarding.OperatingRegion;
 import in.succinct.beckn.registry.db.model.onboarding.ParticipantKey;
 import in.succinct.beckn.registry.extensions.AfterSaveParticipantKey.OnSubscribe;
 import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
-import org.json.simple.JSONValue;
 
-import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -149,7 +141,11 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
                 subscriber.setStatus(role.getStatus());
                 loadRegion(subscriber,role);
             }
-            return getReturnIntegrationAdaptor().createResponse(getPath(),subscribers,Arrays.asList("STATUS"));
+            if (subscribers.size() == 1){
+                return getReturnIntegrationAdaptor().createResponse(getPath(),subscribers.get(0),Arrays.asList("STATUS"));
+            }else {
+                return getReturnIntegrationAdaptor().createResponse(getPath(), subscribers, Arrays.asList("STATUS"));
+            }
         }
 
     }
@@ -186,7 +182,7 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
 
         FormatHelper<T> outHelper = FormatHelper.instance(helper.getMimeType(),StringUtil.pluralize(getModelClass().getSimpleName()),true);
         ModelIOFactory.getWriter(getModelClass(),helper.getFormatClass()).write(records,outHelper.getRoot(),fields);
-        outHelper.change_key_case(KeyCase.TITLE);
+        outHelper.change_key_case(KeyCase.SNAKE);
         JSONArray out = new JSONArray();
         out.addAll(outHelper.getArrayElements("subscribers"));
         return new BytesView(getPath(),out.toString().getBytes(),MimeType.APPLICATION_JSON);
