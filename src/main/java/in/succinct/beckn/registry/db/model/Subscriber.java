@@ -53,12 +53,10 @@ public interface Subscriber extends Model , GeoLocation {
 
     public void setDomain(String domain);
 
-    /*
+
     @COLUMN_NAME("PUB_KEY_ID")
     public String getUniqueKeyId();
     public void setUniqueKeyId(String keyId);
-
-     */
 
     public String getPubKeyId();
     public void setPubKeyId(String keyId);
@@ -220,24 +218,24 @@ public interface Subscriber extends Model , GeoLocation {
 
         List<Subscriber> subscribers = new ArrayList<>();
         List<Long> networkRoleIds = null;
-        if (searchQry.length() > 0){
+        if (searchQry.length() > 0) {
             LuceneIndexer indexer = LuceneIndexer.instance(NetworkRole.class);
             Query q = indexer.constructQuery(searchQry.toString());
 
             networkRoleIds = indexer.findIds(q, Select.MAX_RECORDS_ALL_RECORDS);
             where.add(Expression.createExpression(ModelReflector.instance(NetworkRole.class).getPool(), "ID", Operator.IN, networkRoleIds.toArray()));
-
-
-            Select okSelectNetworkRole = new Select().from(NetworkRole.class).where(where);
-            if (regionPassed) {
-                okSelectNetworkRole.add(" and not exists ( select 1 from operating_regions where network_role_id = network_roles.id) ");
-            }
-            List<NetworkRole> okroles = okSelectNetworkRole.execute();
-
-            for (NetworkRole role : okroles) {
-                subscribers.add(getSubscriber(key,role,null));
-            }
         }
+
+        Select okSelectNetworkRole = new Select().from(NetworkRole.class).where(where);
+        if (regionPassed) {
+            okSelectNetworkRole.add(" and not exists ( select 1 from operating_regions where network_role_id = network_roles.id) ");
+        }
+        List<NetworkRole> okroles = okSelectNetworkRole.execute();
+
+        for (NetworkRole role : okroles) {
+            subscribers.add(getSubscriber(key,role,null));
+        }
+
         if (regionPassed){
             List<OperatingRegion> subscribedRegions = findSubscribedRegions(criteria,networkRoleIds);
             if (subscribedRegions == null){
