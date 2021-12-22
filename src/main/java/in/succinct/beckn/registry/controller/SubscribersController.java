@@ -48,10 +48,10 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
             throw new RuntimeException("Signature Verification failed");
         }
 
-        String unique_key_id = params.get("unique_key_id");
+        String pub_key_id = params.get("pub_key_id");
         String subscriber_id = params.get("subscriber_id");
         NetworkRole role =  NetworkRole.find(subscriber_id);
-        ParticipantKey signedWithKey = ParticipantKey.find(unique_key_id);
+        ParticipantKey signedWithKey = ParticipantKey.find(pub_key_id);
         if (!signedWithKey.isVerified()){
             throw new RuntimeException("Your signing key is not verified by the registrar! Please contact registrar or sign with a verified key.");
         }
@@ -81,8 +81,8 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
                 }
 
                 ParticipantKey newKey = null;
-                if (!ObjectUtil.isVoid(subscriber.getUniqueKeyId())){
-                    newKey = ParticipantKey.find(subscriber.getUniqueKeyId());
+                if (!ObjectUtil.isVoid(subscriber.getPubKeyId())){
+                    newKey = ParticipantKey.find(subscriber.getPubKeyId());
                 }
                 if (newKey != null){
                     if (!ObjectUtil.isVoid(subscriber.getSigningPublicKey())) {

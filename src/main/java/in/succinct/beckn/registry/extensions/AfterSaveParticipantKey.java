@@ -79,7 +79,7 @@ public class AfterSaveParticipantKey extends AfterModelSaveExtension<Participant
                 for (ParticipantKey pk : keys) {
                     JSONObject input = new JSONObject();
                     input.put("subscriber_id", subscriber.getSubscriberId());
-                    input.put("unique_key_id", pk.getKeyId());
+                    input.put("pub_key_id", pk.getKeyId());
 
                     StringBuilder otp = new StringBuilder();
                     for (int i = 0; i < 32; i++) {

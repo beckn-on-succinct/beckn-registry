@@ -1,11 +1,11 @@
 package in.succinct.beckn.registry.db.model;
 
-import com.venky.cache.Cache;
 import com.venky.core.date.DateUtils;
 import com.venky.core.util.ObjectUtil;
 import com.venky.geo.GeoCoordinate;
 import com.venky.geo.GeoLocation;
 import com.venky.swf.db.Database;
+import com.venky.swf.db.annotations.column.COLUMN_NAME;
 import com.venky.swf.db.annotations.column.IS_VIRTUAL;
 import com.venky.swf.db.model.Model;
 import com.venky.swf.db.model.reflection.ModelReflector;
@@ -23,7 +23,6 @@ import in.succinct.beckn.registry.db.model.onboarding.NetworkRole;
 import in.succinct.beckn.registry.db.model.onboarding.OperatingRegion;
 import in.succinct.beckn.registry.db.model.onboarding.ParticipantKey;
 import org.apache.lucene.search.Query;
-import org.bouncycastle.math.raw.Mod;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -54,9 +53,17 @@ public interface Subscriber extends Model , GeoLocation {
 
     public void setDomain(String domain);
 
+    /*
+    @COLUMN_NAME("PUB_KEY_ID")
     public String getUniqueKeyId();
-
     public void setUniqueKeyId(String keyId);
+
+     */
+
+    public String getPubKeyId();
+    public void setPubKeyId(String keyId);
+
+
 
     public String getSigningPublicKey();
 
@@ -149,7 +156,7 @@ public interface Subscriber extends Model , GeoLocation {
         return sel.execute(OperatingRegion.class);
     }
     public static List<Subscriber> lookup(Subscriber criteria, int maxRecords, Expression additionalWhere) {
-        ParticipantKey key = ObjectUtil.isVoid(criteria.getUniqueKeyId())? null : ParticipantKey.find(criteria.getUniqueKeyId());
+        ParticipantKey key = ObjectUtil.isVoid(criteria.getPubKeyId())? null : ParticipantKey.find(criteria.getPubKeyId());
         if (key != null && key.getRawRecord().isNewRecord()){
             //invalid key being looked up.
             return new ArrayList<>();
@@ -280,7 +287,7 @@ public interface Subscriber extends Model , GeoLocation {
         subscriber.setType(networkRole.getType());
         subscriber.setSigningPublicKey(key.getSigningPublicKey());
         subscriber.setEncrPublicKey(key.getEncrPublicKey());
-        subscriber.setUniqueKeyId(key.getKeyId());
+        subscriber.setPubKeyId(key.getKeyId());
         subscriber.setValidFrom(BecknObject.TIMESTAMP_FORMAT.format(key.getValidFrom())) ;
         subscriber.setValidUntil(BecknObject.TIMESTAMP_FORMAT.format(key.getValidUntil()));
         if (region != null ) {
