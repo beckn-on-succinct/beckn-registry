@@ -29,6 +29,7 @@
   </developers>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <revision>2.6-SNAPSHOT</revision>
     </properties>
     <build>
         <plugins>
@@ -58,7 +59,7 @@
         <dependency>
             <groupId>com.github.venkatramanm.swf-all</groupId>
             <artifactId>swf-plugin-collab</artifactId>
-            <version>[2.6-SNAPSHOT,)</version>
+            <version>${revision}</version>
         </dependency>
     </dependencies>
 </project>

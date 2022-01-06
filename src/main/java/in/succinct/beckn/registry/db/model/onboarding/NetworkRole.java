@@ -2,6 +2,7 @@ package in.succinct.beckn.registry.db.model.onboarding;
 
 import com.venky.swf.db.Database;
 import com.venky.swf.db.annotations.column.COLUMN_DEF;
+import com.venky.swf.db.annotations.column.IS_NULLABLE;
 import com.venky.swf.db.annotations.column.UNIQUE_KEY;
 import com.venky.swf.db.annotations.column.defaulting.StandardDefault;
 import com.venky.swf.db.annotations.column.indexing.Index;
@@ -25,6 +26,7 @@ public interface NetworkRole extends Model {
     @HIDDEN
     @UNIQUE_KEY
     @Index
+    @IS_NULLABLE(false)
     public Long getNetworkParticipantId();
     public void setNetworkParticipantId(Long id);
     public NetworkParticipant getNetworkParticipant();
