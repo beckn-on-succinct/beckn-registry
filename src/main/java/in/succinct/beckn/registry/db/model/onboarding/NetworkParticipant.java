@@ -2,6 +2,7 @@ package in.succinct.beckn.registry.db.model.onboarding;
 
 import com.venky.swf.db.Database;
 import com.venky.swf.db.annotations.column.UNIQUE_KEY;
+import com.venky.swf.db.annotations.column.indexing.Index;
 import com.venky.swf.db.annotations.model.HAS_DESCRIPTION_FIELD;
 import com.venky.swf.db.annotations.model.MENU;
 import com.venky.swf.db.model.Model;
@@ -12,6 +13,7 @@ import java.util.List;
 @MENU("Admin")
 public interface NetworkParticipant extends Model {
     @UNIQUE_KEY
+    @Index
     public String getParticipantId();
     public void setParticipantId(String id);
 
@@ -26,4 +28,8 @@ public interface NetworkParticipant extends Model {
         participant = Database.getTable(NetworkParticipant.class).getRefreshed(participant);
         return participant;
     }
+
+    @Index
+    public Long getCreatorUserId();
+
 }
