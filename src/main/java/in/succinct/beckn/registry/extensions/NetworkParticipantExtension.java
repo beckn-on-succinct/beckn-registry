@@ -16,6 +16,8 @@ public class NetworkParticipantExtension extends ParticipantExtension<NetworkPar
     protected List<Long> getAllowedFieldValues(User user, NetworkParticipant partiallyFilledModel, String fieldName) {
         if (ObjectUtil.equals(fieldName,"CREATOR_USER_ID")){
             return Arrays.asList(user.getId());
+        }else if (ObjectUtil.equals(fieldName,"ANY_USER_ID")){
+            return null; //Any one can see.
         }
         return null;
     }
