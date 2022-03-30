@@ -29,7 +29,7 @@
   </developers>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <revision>2.10</revision>
+        <revision>2.11</revision>
     </properties>
     <build>
         <plugins>
