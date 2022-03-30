@@ -101,6 +101,7 @@ public class AfterSaveParticipantKey extends AfterModelSaveExtension<Participant
                         JSONObject response = new Call<JSONObject>().url(subscriber.getUrl() + "/on_subscribe")
                                 .method(HttpMethod.POST).inputFormat(InputFormat.JSON).input(input)
                                 .header("Content-type", MimeType.APPLICATION_JSON.toString())
+                                .header("Authorization",new Request(input).generateAuthorizationHeader(Config.instance().getHostName(),Config.instance().getHostName() + ".k1"))
                                 .header("Signature", Request.generateSignature(input.toString(), CryptoKey.find(Config.instance().getHostName() + ".k1",CryptoKey.PURPOSE_SIGNING).getPrivateKey())).getResponseAsJson();
 
                         if (ObjectUtil.equals(response.get("answer"), otp.toString())) {
