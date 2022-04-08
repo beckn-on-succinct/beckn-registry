@@ -27,10 +27,15 @@ import in.succinct.beckn.registry.db.model.onboarding.NetworkRole;
 import in.succinct.beckn.registry.db.model.onboarding.OperatingRegion;
 import in.succinct.beckn.registry.db.model.onboarding.ParticipantKey;
 import in.succinct.beckn.registry.extensions.AfterSaveParticipantKey.OnSubscribe;
+import org.bouncycastle.asn1.edec.EdECObjectIdentifiers;
+import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
+import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
+import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
 import org.json.simple.JSONArray;
 
 import java.sql.Timestamp;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
@@ -176,6 +181,17 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
         Subscriber subscriber = ModelIOFactory.getReader(Subscriber.class, helper.getFormatClass()).read(helper.getRoot());
 
         List<Subscriber> records = Subscriber.lookup(subscriber,MAX_LIST_RECORDS,getWhereClause());
+        String format = getPath().getHeaders().get("pub_key_format");
+        if (!ObjectUtil.isVoid(format) ){
+            if (!ObjectUtil.equals("PEM",format.toUpperCase())){
+                throw new RuntimeException("Only allowed value to be passed is PEM");
+            }
+            for (Subscriber s : records){
+                s.setSigningPublicKey(Request.getPemSigningKey(s.getSigningPublicKey()));
+                s.setEncrPublicKey(Request.getPemEncryptionKey(s.getEncrPublicKey()));
+            }
+        }
+
 
         List<String> fields = Arrays.asList("UNIQUE_KEY_ID", "PUB_KEY_ID","SUBSCRIBER_ID","SUBSCRIBER_URL","TYPE","DOMAIN",
                 "CITY","COUNTRY","SIGNING_PUBLIC_KEY","ENCR_PUBLIC_KEY","VALID_FROM","VALID_UNTIL","STATUS","CREATED","UPDATED");
