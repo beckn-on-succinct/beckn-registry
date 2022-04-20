@@ -9,3 +9,4 @@ nohup.out
 database/
 /.gradle/
 .keystore
+/docs/_build/

@@ -14,7 +14,7 @@ import com.venky.swf.plugins.background.core.TaskManager;
 import com.venky.swf.plugins.collab.db.model.CryptoKey;
 import com.venky.swf.routing.Config;
 import in.succinct.beckn.Request;
-import in.succinct.beckn.registry.db.model.Subscriber;
+import in.succinct.beckn.Subscriber;
 import in.succinct.beckn.registry.db.model.onboarding.NetworkParticipant;
 import in.succinct.beckn.registry.db.model.onboarding.NetworkRole;
 import in.succinct.beckn.registry.db.model.onboarding.ParticipantKey;
@@ -89,6 +89,8 @@ public class AfterSaveParticipantKey extends AfterModelSaveExtension<Participant
                         PublicKey key = Request.getEncryptionPublicKey(pk.getEncrPublicKey());
                         CryptoKey cryptoKey = CryptoKey.find(Config.instance().getHostName() + ".k1",CryptoKey.PURPOSE_ENCRYPTION);
                         PrivateKey privateKey = Crypt.getInstance().getPrivateKey(Request.ENCRYPTION_ALGO, cryptoKey.getPrivateKey());
+                        NetworkRole registry = NetworkParticipant.find(Config.instance().getHostName()).getNetworkRoles().stream().filter(r->r.getType().equals(Subscriber.SUBSCRIBER_TYPE_LOCAL_REGISTRY)).findFirst().get();
+
 
                         KeyAgreement agreement = KeyAgreement.getInstance(Request.ENCRYPTION_ALGO);
                         agreement.init(privateKey);
@@ -101,7 +103,7 @@ public class AfterSaveParticipantKey extends AfterModelSaveExtension<Participant
                         JSONObject response = new Call<JSONObject>().url(subscriber.getUrl() + "/on_subscribe")
                                 .method(HttpMethod.POST).inputFormat(InputFormat.JSON).input(input)
                                 .header("Content-type", MimeType.APPLICATION_JSON.toString())
-                                .header("Authorization",new Request(input).generateAuthorizationHeader(Config.instance().getHostName(),Config.instance().getHostName() + ".k1"))
+                                .header("Authorization",new Request(input).generateAuthorizationHeader(registry.getSubscriberId(),Config.instance().getHostName() + ".k1"))
                                 .header("Signature", Request.generateSignature(input.toString(), CryptoKey.find(Config.instance().getHostName() + ".k1",CryptoKey.PURPOSE_SIGNING).getPrivateKey())).getResponseAsJson();
 
                         if (ObjectUtil.equals(response.get("answer"), otp.toString())) {

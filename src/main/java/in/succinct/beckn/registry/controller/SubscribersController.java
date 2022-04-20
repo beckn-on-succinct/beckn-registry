@@ -91,10 +91,10 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
                 }
                 if (newKey != null){
                     if (!ObjectUtil.isVoid(subscriber.getSigningPublicKey())) {
-                        newKey.setSigningPublicKey(subscriber.getSigningPublicKey());
+                        newKey.setSigningPublicKey(Request.getRawSigningKey(subscriber.getSigningPublicKey()));
                     }
                     if (!ObjectUtil.isVoid(subscriber.getEncrPublicKey())){
-                        newKey.setEncrPublicKey(subscriber.getEncrPublicKey());
+                        newKey.setEncrPublicKey(Request.getRawEncryptionKey(subscriber.getEncrPublicKey()));
                     }
 
                     if (!newKey.getRawRecord().isNewRecord() &&  newKey.isVerified()){
