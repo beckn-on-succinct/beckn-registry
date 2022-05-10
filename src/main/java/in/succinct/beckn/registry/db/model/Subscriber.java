@@ -248,7 +248,10 @@ public interface Subscriber extends Model , GeoLocation {
                                 finalNetworkRoleIds.toArray())).execute();
 
                 for (NetworkRole networkRole : regionMatchingSubscriptions) {
-                    subscribers.add(getSubscriber(key, networkRole, null));
+                    Subscriber subscriber = getSubscriber(key, networkRole, null);
+                    if (subscriber != null) {
+                        subscribers.add(subscriber);
+                    }
                 }
             }
         }
