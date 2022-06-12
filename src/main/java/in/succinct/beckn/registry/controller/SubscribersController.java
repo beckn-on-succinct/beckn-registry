@@ -23,10 +23,13 @@ import in.succinct.beckn.BecknObject;
 import in.succinct.beckn.Location;
 import in.succinct.beckn.Request;
 import in.succinct.beckn.registry.db.model.Subscriber;
+import in.succinct.beckn.registry.db.model.onboarding.NetworkDomain;
+import in.succinct.beckn.registry.db.model.onboarding.NetworkParticipant;
 import in.succinct.beckn.registry.db.model.onboarding.NetworkRole;
 import in.succinct.beckn.registry.db.model.onboarding.OperatingRegion;
 import in.succinct.beckn.registry.db.model.onboarding.ParticipantKey;
 import in.succinct.beckn.registry.extensions.AfterSaveParticipantKey.OnSubscribe;
+import jdk.jfr.DataAmount;
 import org.bouncycastle.asn1.edec.EdECObjectIdentifiers;
 import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
@@ -42,6 +45,41 @@ import java.util.Map;
 public class SubscribersController extends VirtualModelController<Subscriber> {
     public SubscribersController(Path path) {
         super(path);
+    }
+
+    @RequireLogin(false)
+    public  <T> View register() throws Exception{
+        List<Subscriber> subscribers = getIntegrationAdaptor().readRequest(getPath());
+        for (Subscriber subscriber :subscribers){
+            NetworkParticipant networkParticipant = Database.getTable(NetworkParticipant.class).newRecord();
+            networkParticipant.setParticipantId(subscriber.getSubscriberId());
+            networkParticipant.save();
+            NetworkRole role = Database.getTable(NetworkRole.class).newRecord();
+            role.setSubscriberId(subscriber.getSubscriberId());
+            role.setStatus(NetworkRole.SUBSCRIBER_STATUS_INITIATED);
+            role.setNetworkParticipantId(networkParticipant.getId());
+            role.setUrl(subscriber.getSubscriberUrl());
+            role.setType(subscriber.getType());
+            role.setNetworkDomainId(NetworkDomain.find(subscriber.getDomain()).getId());
+            role.save();
+            subscriber.setStatus(role.getStatus());
+
+            ParticipantKey key = Database.getTable(ParticipantKey.class).newRecord();
+            key.setKeyId(subscriber.getPubKeyId());
+            key.setVerified(true);
+            key.setNetworkParticipantId(networkParticipant.getId());
+            key.setEncrPublicKey(Request.getRawEncryptionKey(subscriber.getEncrPublicKey()));
+            key.setSigningPublicKey(Request.getRawSigningKey(subscriber.getSigningPublicKey()));
+            key.setValidFrom(new Timestamp(BecknObject.TIMESTAMP_FORMAT.parse(subscriber.getValidFrom()).getTime()));
+            key.setValidUntil(new Timestamp(BecknObject.TIMESTAMP_FORMAT.parse(subscriber.getValidUntil()).getTime()));
+            key.save();
+            loadRegion(subscriber,role);
+        }
+        if (subscribers.size() == 1){
+            return getReturnIntegrationAdaptor().createResponse(getPath(),subscribers.get(0),Arrays.asList("STATUS"));
+        }else {
+            return getReturnIntegrationAdaptor().createResponse(getPath(), subscribers, Arrays.asList("STATUS"));
+        }
     }
 
     @RequireLogin(false)
