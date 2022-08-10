@@ -2,8 +2,7 @@
 
 ## /subscribe 
 
-Complete Payload
--
+### Complete Payload
 While complete payload is elaborate, based on usecase, only some of them may be needed in any call. 
  
 	{ 
