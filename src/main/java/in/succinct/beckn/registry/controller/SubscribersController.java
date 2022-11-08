@@ -250,10 +250,12 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
         String[] pair = CryptoKey.generateKeyPair(Request.SIGNATURE_ALGO,Request.SIGNATURE_ALGO_KEY_LENGTH);
         key.setPrivateKey(pair[0]);
         key.setPublicKey(pair[1]);
-        return IntegrationAdaptor.instance(CryptoKey.class,getIntegrationAdaptor().getFormatClass()).
+        return IntegrationAdaptor.instance(CryptoKey.class,FormatHelper.getFormatClass(MimeType.APPLICATION_JSON)).
                 createResponse(getPath(),key, Arrays.asList("PUBLIC_KEY","PRIVATE_KEY"));
 
     }
+
+
     @RequireLogin(false)
     public View generateEncryptionKeys(){
         CryptoKey key = Database.getTable(CryptoKey.class).newRecord();
@@ -261,7 +263,7 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
         String[] pair = CryptoKey.generateKeyPair(Request.ENCRYPTION_ALGO,Request.ENCRYPTION_ALGO_KEY_LENGTH);
         key.setPrivateKey(pair[0]);
         key.setPublicKey(pair[1]);
-        return IntegrationAdaptor.instance(CryptoKey.class,getIntegrationAdaptor().getFormatClass()).
+        return IntegrationAdaptor.instance(CryptoKey.class,FormatHelper.getFormatClass(MimeType.APPLICATION_JSON)).
                 createResponse(getPath(),key, Arrays.asList("PUBLIC_KEY","PRIVATE_KEY"));
 
     }

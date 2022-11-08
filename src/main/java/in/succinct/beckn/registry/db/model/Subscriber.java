@@ -233,7 +233,10 @@ public interface Subscriber extends Model , GeoLocation {
         List<NetworkRole> okroles = okSelectNetworkRole.execute();
 
         for (NetworkRole role : okroles) {
-            subscribers.add(getSubscriber(key,role,null));
+            Subscriber subscriber = getSubscriber(key,role,null);
+            if (subscriber != null) {
+                subscribers.add(subscriber);
+            }
         }
 
         if (regionPassed){
