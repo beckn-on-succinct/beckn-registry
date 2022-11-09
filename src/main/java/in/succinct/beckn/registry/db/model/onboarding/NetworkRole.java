@@ -47,13 +47,16 @@ public interface NetworkRole extends Model {
     public static final String SUBSCRIBER_TYPE_COUNTRY_REGISTRY = "CREG";
     public static final String SUBSCRIBER_TYPE_ROOT_REGISTRY = "RREG";
     public static final String SUBSCRIBER_TYPE_BG = "BG";
+    public static final String SUBSCRIBER_TYPE_UNKNOWN = "";
 
-    public static final String SUBSCRIBER_ENUM = SUBSCRIBER_TYPE_BAP+"," +SUBSCRIBER_TYPE_BPP + ","  +
+
+    public static final String SUBSCRIBER_ENUM = SUBSCRIBER_TYPE_UNKNOWN + "," +SUBSCRIBER_TYPE_BAP+"," +SUBSCRIBER_TYPE_BPP + ","  +
             SUBSCRIBER_TYPE_LOCAL_REGISTRY + "," + SUBSCRIBER_TYPE_COUNTRY_REGISTRY + "," + SUBSCRIBER_TYPE_ROOT_REGISTRY + "," + SUBSCRIBER_TYPE_BG;
 
     @Enumeration( SUBSCRIBER_ENUM )
     @UNIQUE_KEY(allowMultipleRecordsWithNull = false)
     @Index
+    @IS_NULLABLE
     public String getType();
     public void setType(String type);
 
