@@ -47,7 +47,7 @@ public interface NetworkRole extends Model {
     public static final String SUBSCRIBER_TYPE_COUNTRY_REGISTRY = "CREG";
     public static final String SUBSCRIBER_TYPE_ROOT_REGISTRY = "RREG";
     public static final String SUBSCRIBER_TYPE_BG = "BG";
-    public static final String SUBSCRIBER_TYPE_UNKNOWN = "";
+    public static final String SUBSCRIBER_TYPE_UNKNOWN = " ";
 
 
     public static final String SUBSCRIBER_ENUM = SUBSCRIBER_TYPE_UNKNOWN + "," +SUBSCRIBER_TYPE_BAP+"," +SUBSCRIBER_TYPE_BPP + ","  +
