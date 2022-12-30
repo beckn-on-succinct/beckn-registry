@@ -4,7 +4,7 @@ import com.venky.core.security.Crypt;
 import com.venky.core.string.StringUtil;
 import com.venky.swf.configuration.Installer;
 import com.venky.swf.db.Database;
-import com.venky.swf.plugins.collab.db.model.CryptoKey;
+import com.venky.swf.db.model.CryptoKey;
 import com.venky.swf.plugins.collab.db.model.config.Country;
 import com.venky.swf.plugins.collab.db.model.config.State;
 import com.venky.swf.routing.Config;

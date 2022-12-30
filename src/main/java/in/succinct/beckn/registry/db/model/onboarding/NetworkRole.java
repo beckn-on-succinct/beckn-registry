@@ -34,7 +34,7 @@ public interface NetworkRole extends Model {
     public void setNetworkParticipantId(Long id);
     public NetworkParticipant getNetworkParticipant();
 
-    @UNIQUE_KEY(allowMultipleRecordsWithNull = false)
+    @UNIQUE_KEY
     @Index
     public Long getNetworkDomainId();
     public void setNetworkDomainId(Long id);

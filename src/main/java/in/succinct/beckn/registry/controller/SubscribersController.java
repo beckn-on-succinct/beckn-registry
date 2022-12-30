@@ -13,7 +13,7 @@ import com.venky.swf.integration.FormatHelper.KeyCase;
 import com.venky.swf.integration.IntegrationAdaptor;
 import com.venky.swf.path.Path;
 import com.venky.swf.plugins.background.core.TaskManager;
-import com.venky.swf.plugins.collab.db.model.CryptoKey;
+import com.venky.swf.db.model.CryptoKey;
 import com.venky.swf.plugins.collab.db.model.config.City;
 import com.venky.swf.plugins.collab.db.model.config.Country;
 import com.venky.swf.routing.Config;
@@ -29,16 +29,10 @@ import in.succinct.beckn.registry.db.model.onboarding.NetworkRole;
 import in.succinct.beckn.registry.db.model.onboarding.OperatingRegion;
 import in.succinct.beckn.registry.db.model.onboarding.ParticipantKey;
 import in.succinct.beckn.registry.extensions.AfterSaveParticipantKey.OnSubscribe;
-import jdk.jfr.DataAmount;
-import org.bouncycastle.asn1.edec.EdECObjectIdentifiers;
-import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
-import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
-import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
 import org.json.simple.JSONArray;
 
 import java.sql.Timestamp;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
