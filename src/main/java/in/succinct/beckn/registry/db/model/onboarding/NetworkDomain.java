@@ -19,6 +19,9 @@ public interface NetworkDomain extends Model {
     public String getDescription();
     public void setDescription(String description);
 
+    public String getSchemaUrl();
+    public void setSchemaUrl(String schemaUrl);
+
     public static NetworkDomain find(String name){
         NetworkDomain domain = Database.getTable(NetworkDomain.class).newRecord();
         domain.setName(name);
