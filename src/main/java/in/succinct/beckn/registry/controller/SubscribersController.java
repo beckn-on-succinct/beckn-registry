@@ -310,7 +310,7 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
             region.setLng(coordinate.getLng());
         }
         if (location.getCircle() != null){
-            region.setRadius(location.getCircle().getRadius());
+            region.setRadius(location.getCircle().getRadius().getValue());
         }
 
         region = Database.getTable(OperatingRegion.class).getRefreshed(region);
