@@ -220,11 +220,11 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
         {
             // Do input bc.
             in.succinct.beckn.Subscriber bcSubscriber = new in.succinct.beckn.Subscriber((JSONObject) JSONValue.parse(new InputStreamReader(getPath().getInputStream())));
-            helper = FormatHelper.instance(bcSubscriber.getInner());
             if (ObjectUtil.isVoid(bcSubscriber.getCity()) && bcSubscriber.getLocation() != null && bcSubscriber.getLocation().getCity() != null) {
                 bcSubscriber.setCity(bcSubscriber.getLocation().getCity().getCode());
                 bcSubscriber.setLocation(null);
             }
+            helper = FormatHelper.instance(bcSubscriber.getInner());
             helper.change_key_case(KeyCase.CAMEL);
         }
         Subscriber subscriber = ModelIOFactory.getReader(Subscriber.class, helper.getFormatClass()).read(helper.getRoot());
