@@ -245,7 +245,7 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
         List<String> fields = Arrays.asList("UNIQUE_KEY_ID", "PUB_KEY_ID","SUBSCRIBER_ID","SUBSCRIBER_URL","TYPE","DOMAIN",
                 "CITY","COUNTRY","SIGNING_PUBLIC_KEY","ENCR_PUBLIC_KEY","VALID_FROM","VALID_UNTIL","STATUS","CREATED","UPDATED");
 
-        FormatHelper<T> outHelper = FormatHelper.instance(helper.getMimeType(),StringUtil.pluralize(getModelClass().getSimpleName()),true);
+        FormatHelper<JSONObject> outHelper = FormatHelper.instance(helper.getMimeType(),StringUtil.pluralize(getModelClass().getSimpleName()),true);
         ModelIOFactory.getWriter(getModelClass(),helper.getFormatClass()).write(records,outHelper.getRoot(),fields);
         outHelper.change_key_case(KeyCase.SNAKE);
         JSONArray out = new JSONArray();
