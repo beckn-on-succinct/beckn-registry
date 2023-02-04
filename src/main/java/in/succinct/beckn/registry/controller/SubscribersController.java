@@ -209,23 +209,24 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
     }
 
     @RequireLogin(false)
-    public <T> View lookup() throws Exception{
+    public View lookup() throws Exception{
         String version = "v0";
         String firstElement = getPath().getPathElements().get(0);
         if (!ObjectUtil.equals(firstElement,getPath().controllerPathElement())){
             version = firstElement;
         }
 
-        FormatHelper<T> helper = FormatHelper.instance(getPath().getProtocol(),getPath().getInputStream());
+        FormatHelper<JSONObject> helper = null ;
         {
             // Do input bc.
             in.succinct.beckn.Subscriber bcSubscriber = new in.succinct.beckn.Subscriber((JSONObject) JSONValue.parse(new InputStreamReader(getPath().getInputStream())));
+            helper = FormatHelper.instance(bcSubscriber.getInner());
             if (ObjectUtil.isVoid(bcSubscriber.getCity()) && bcSubscriber.getLocation() != null && bcSubscriber.getLocation().getCity() != null) {
                 bcSubscriber.setCity(bcSubscriber.getLocation().getCity().getCode());
                 bcSubscriber.setLocation(null);
             }
+            helper.change_key_case(KeyCase.CAMEL);
         }
-        helper.change_key_case(KeyCase.CAMEL);
         Subscriber subscriber = ModelIOFactory.getReader(Subscriber.class, helper.getFormatClass()).read(helper.getRoot());
 
         List<Subscriber> records = Subscriber.lookup(subscriber,MAX_LIST_RECORDS,getWhereClause());
