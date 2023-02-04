@@ -30,6 +30,7 @@ import in.succinct.beckn.registry.db.model.onboarding.OperatingRegion;
 import in.succinct.beckn.registry.db.model.onboarding.ParticipantKey;
 import in.succinct.beckn.registry.extensions.AfterSaveParticipantKey.OnSubscribe;
 import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
 
 import java.sql.Timestamp;
 import java.util.Arrays;
@@ -207,8 +208,24 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
 
     @RequireLogin(false)
     public <T> View lookup() throws Exception{
+        String version = "v0";
+        String firstElement = getPath().getPathElements().get(0);
+        if (!ObjectUtil.equals(firstElement,getPath().controllerPathElement())){
+            version = firstElement;
+        }
+
         FormatHelper<T> helper = FormatHelper.instance(getPath().getProtocol(),getPath().getInputStream());
+        {
+            // Do input bc.
+            in.succinct.beckn.Subscriber bcSubscriber = new in.succinct.beckn.Subscriber((JSONObject) helper.getRoot());
+            if (ObjectUtil.isVoid(bcSubscriber.getCity()) && bcSubscriber.getLocation() != null && bcSubscriber.getLocation().getCity() != null) {
+                bcSubscriber.setCity(bcSubscriber.getLocation().getCity().getCode());
+                bcSubscriber.setLocation(null);
+            }
+        }
         helper.change_key_case(KeyCase.CAMEL);
+
+
 
         Subscriber subscriber = ModelIOFactory.getReader(Subscriber.class, helper.getFormatClass()).read(helper.getRoot());
 
@@ -233,6 +250,19 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
         outHelper.change_key_case(KeyCase.SNAKE);
         JSONArray out = new JSONArray();
         out.addAll(outHelper.getArrayElements("subscribers"));
+        if (ObjectUtil.equals(version,"v1")){
+            for (Object o : out){
+                JSONObject s = (JSONObject) o;
+                in.succinct.beckn.Subscriber bcSubscriber = new in.succinct.beckn.Subscriber(s);
+                if (!ObjectUtil.isVoid(bcSubscriber.getCity())){
+                    bcSubscriber.setLocation(new Location());
+                    bcSubscriber.getLocation().setCity(new in.succinct.beckn.City());
+                    bcSubscriber.getLocation().getCity().setCode(bcSubscriber.getCity());
+                    bcSubscriber.setCity(null);
+                }
+            }
+        }
+
         return new BytesView(getPath(),out.toString().getBytes(),MimeType.APPLICATION_JSON);
 
     }
