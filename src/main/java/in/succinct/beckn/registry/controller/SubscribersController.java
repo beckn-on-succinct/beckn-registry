@@ -31,7 +31,9 @@ import in.succinct.beckn.registry.db.model.onboarding.ParticipantKey;
 import in.succinct.beckn.registry.extensions.AfterSaveParticipantKey.OnSubscribe;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
+import org.json.simple.JSONValue;
 
+import java.io.InputStreamReader;
 import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.List;
@@ -217,16 +219,13 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
         FormatHelper<T> helper = FormatHelper.instance(getPath().getProtocol(),getPath().getInputStream());
         {
             // Do input bc.
-            in.succinct.beckn.Subscriber bcSubscriber = new in.succinct.beckn.Subscriber((JSONObject) helper.getRoot());
+            in.succinct.beckn.Subscriber bcSubscriber = new in.succinct.beckn.Subscriber((JSONObject) JSONValue.parse(new InputStreamReader(getPath().getInputStream())));
             if (ObjectUtil.isVoid(bcSubscriber.getCity()) && bcSubscriber.getLocation() != null && bcSubscriber.getLocation().getCity() != null) {
                 bcSubscriber.setCity(bcSubscriber.getLocation().getCity().getCode());
                 bcSubscriber.setLocation(null);
             }
         }
         helper.change_key_case(KeyCase.CAMEL);
-
-
-
         Subscriber subscriber = ModelIOFactory.getReader(Subscriber.class, helper.getFormatClass()).read(helper.getRoot());
 
         List<Subscriber> records = Subscriber.lookup(subscriber,MAX_LIST_RECORDS,getWhereClause());
