@@ -45,6 +45,46 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
     }
 
     @RequireLogin(false)
+    public <T> View disable() throws Exception {
+
+        String payload = StringUtil.read(getPath().getInputStream());
+        Request request = new Request(payload);
+        Map<String,String> params = request.extractAuthorizationParams("X-Gateway-Authorization",getPath().getHeaders());
+        if (params.isEmpty()){
+            throw new RuntimeException("Signature Verification failed");
+        }
+
+        String pub_key_id = params.get("pub_key_id");
+        String subscriber_id = params.get("subscriber_id");
+        NetworkRole role =  NetworkRole.find(subscriber_id);
+        ParticipantKey signedWithKey = ParticipantKey.find(pub_key_id);
+        if (!signedWithKey.isVerified()){
+            throw new RuntimeException("Your signing key is not verified by the registrar! Please contact registrar or sign with a verified key.");
+        }
+        if (!ObjectUtil.equals(role.getNetworkParticipantId() ,signedWithKey.getNetworkParticipantId())){
+            throw new RuntimeException("Key signed with is not registered against you. Please contact registrar");
+        }
+        if (!request.verifySignature("X-Gateway-Authorization",getPath().getHeaders(),true)){
+            throw new RuntimeException("Signature Verification failed");
+        }
+
+
+        List<Subscriber> subscribers = getIntegrationAdaptor().readRequest(getPath());
+        for (Subscriber subscriber :subscribers) {
+            NetworkRole disabledRole = NetworkRole.find(subscriber.getSubscriberId());
+            disabledRole.setStatus(NetworkRole.SUBSCRIBER_STATUS_UNSUBSCRIBED);
+            //disabledRole.save();
+            Config.instance().getLogger(getClass().getName()).info("Not saving as this is test. Dry Run");
+            subscriber.setStatus(disabledRole.getStatus());
+        }
+        if (subscribers.size() == 1){
+            return getReturnIntegrationAdaptor().createResponse(getPath(),subscribers.get(0),Arrays.asList("STATUS"));
+        }else {
+            return getReturnIntegrationAdaptor().createResponse(getPath(), subscribers, Arrays.asList("STATUS"));
+        }
+    }
+
+    @RequireLogin(false)
     public  <T> View register() throws Exception{
         List<Subscriber> subscribers = getIntegrationAdaptor().readRequest(getPath());
         for (Subscriber subscriber :subscribers){
