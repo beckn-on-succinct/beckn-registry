@@ -40,6 +40,10 @@ public interface NetworkRole extends Model {
     public void setNetworkDomainId(Long id);
     public NetworkDomain getNetworkDomain();
 
+    @COLUMN_DEF(value = StandardDefault.SOME_VALUE,args = "v0")
+    public String getCoreVersion();
+    public void setCoreVersion(String coreVersion);
+
 
     public static final String SUBSCRIBER_TYPE_BAP = "BAP";
     public static final String SUBSCRIBER_TYPE_BPP = "BPP";

@@ -1,14 +1,19 @@
 package in.succinct.beckn.registry.db.model;
 
 import com.venky.core.date.DateUtils;
+import com.venky.core.string.StringUtil;
 import com.venky.core.util.ObjectUtil;
 import com.venky.geo.GeoCoordinate;
 import com.venky.geo.GeoLocation;
 import com.venky.swf.db.Database;
 import com.venky.swf.db.annotations.column.COLUMN_NAME;
 import com.venky.swf.db.annotations.column.IS_VIRTUAL;
+import com.venky.swf.db.annotations.column.ui.mimes.MimeType;
 import com.venky.swf.db.model.Model;
+import com.venky.swf.db.model.io.ModelIOFactory;
 import com.venky.swf.db.model.reflection.ModelReflector;
+import com.venky.swf.integration.FormatHelper;
+import com.venky.swf.integration.FormatHelper.KeyCase;
 import com.venky.swf.plugins.collab.db.model.config.City;
 import com.venky.swf.plugins.collab.db.model.config.Country;
 import com.venky.swf.plugins.collab.util.BoundingBox;
@@ -18,13 +23,19 @@ import com.venky.swf.sql.Expression;
 import com.venky.swf.sql.Operator;
 import com.venky.swf.sql.Select;
 import in.succinct.beckn.BecknObject;
+import in.succinct.beckn.Location;
+import in.succinct.beckn.Request;
 import in.succinct.beckn.registry.db.model.onboarding.NetworkDomain;
 import in.succinct.beckn.registry.db.model.onboarding.NetworkRole;
 import in.succinct.beckn.registry.db.model.onboarding.OperatingRegion;
 import in.succinct.beckn.registry.db.model.onboarding.ParticipantKey;
 import org.apache.lucene.search.Query;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -96,6 +107,40 @@ public interface Subscriber extends Model , GeoLocation {
     public void setUpdated(String updated);
     public String getUpdated();
 
+    public static JSONArray toBeckn(List<Subscriber> records, String format, String version) throws IOException {
+        if (!ObjectUtil.isVoid(format) ){
+            if (!ObjectUtil.equals("PEM",format.toUpperCase())){
+                throw new RuntimeException("Only allowed value to be passed is PEM");
+            }
+            for (Subscriber s : records){
+                s.setSigningPublicKey(Request.getPemSigningKey(s.getSigningPublicKey()));
+                s.setEncrPublicKey(Request.getPemEncryptionKey(s.getEncrPublicKey()));
+            }
+        }
+
+
+        List<String> fields = Arrays.asList("UNIQUE_KEY_ID", "PUB_KEY_ID","SUBSCRIBER_ID","SUBSCRIBER_URL","TYPE","DOMAIN",
+                "CITY","COUNTRY","SIGNING_PUBLIC_KEY","ENCR_PUBLIC_KEY","VALID_FROM","VALID_UNTIL","STATUS","CREATED","UPDATED");
+
+        FormatHelper<JSONObject> outHelper = FormatHelper.instance(MimeType.APPLICATION_JSON,StringUtil.pluralize(Subscriber.class.getSimpleName()),true);
+        ModelIOFactory.getWriter(Subscriber.class,outHelper.getFormatClass()).write(records,outHelper.getRoot(),fields);
+        outHelper.change_key_case(KeyCase.SNAKE);
+        JSONArray out = new JSONArray();
+        out.addAll(outHelper.getArrayElements("subscribers"));
+        if (ObjectUtil.equals(version,"v1")){
+            for (Object o : out){
+                JSONObject s = (JSONObject) o;
+                in.succinct.beckn.Subscriber bcSubscriber = new in.succinct.beckn.Subscriber(s);
+                if (!ObjectUtil.isVoid(bcSubscriber.getCity())){
+                    bcSubscriber.setLocation(new Location());
+                    bcSubscriber.getLocation().setCity(new in.succinct.beckn.City());
+                    bcSubscriber.getLocation().getCity().setCode(bcSubscriber.getCity());
+                    bcSubscriber.setCity(null);
+                }
+            }
+        }
+        return out;
+    }
     public static List<Subscriber> lookup(Subscriber criteria, int maxRecords) {
         return lookup(criteria, maxRecords, null);
     }

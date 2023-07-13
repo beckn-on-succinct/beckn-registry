@@ -269,40 +269,10 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
         }
         Subscriber subscriber = ModelIOFactory.getReader(Subscriber.class, helper.getFormatClass()).read(helper.getRoot());
 
-        List<Subscriber> records = Subscriber.lookup(subscriber,MAX_LIST_RECORDS,getWhereClause());
+        List<Subscriber> records = Subscriber.lookup(subscriber,0,getWhereClause());
+
         String format = getPath().getHeaders().get("pub_key_format");
-        if (!ObjectUtil.isVoid(format) ){
-            if (!ObjectUtil.equals("PEM",format.toUpperCase())){
-                throw new RuntimeException("Only allowed value to be passed is PEM");
-            }
-            for (Subscriber s : records){
-                s.setSigningPublicKey(Request.getPemSigningKey(s.getSigningPublicKey()));
-                s.setEncrPublicKey(Request.getPemEncryptionKey(s.getEncrPublicKey()));
-            }
-        }
-
-
-        List<String> fields = Arrays.asList("UNIQUE_KEY_ID", "PUB_KEY_ID","SUBSCRIBER_ID","SUBSCRIBER_URL","TYPE","DOMAIN",
-                "CITY","COUNTRY","SIGNING_PUBLIC_KEY","ENCR_PUBLIC_KEY","VALID_FROM","VALID_UNTIL","STATUS","CREATED","UPDATED");
-
-        FormatHelper<JSONObject> outHelper = FormatHelper.instance(helper.getMimeType(),StringUtil.pluralize(getModelClass().getSimpleName()),true);
-        ModelIOFactory.getWriter(getModelClass(),helper.getFormatClass()).write(records,outHelper.getRoot(),fields);
-        outHelper.change_key_case(KeyCase.SNAKE);
-        JSONArray out = new JSONArray();
-        out.addAll(outHelper.getArrayElements("subscribers"));
-        if (ObjectUtil.equals(version,"v1")){
-            for (Object o : out){
-                JSONObject s = (JSONObject) o;
-                in.succinct.beckn.Subscriber bcSubscriber = new in.succinct.beckn.Subscriber(s);
-                if (!ObjectUtil.isVoid(bcSubscriber.getCity())){
-                    bcSubscriber.setLocation(new Location());
-                    bcSubscriber.getLocation().setCity(new in.succinct.beckn.City());
-                    bcSubscriber.getLocation().getCity().setCode(bcSubscriber.getCity());
-                    bcSubscriber.setCity(null);
-                }
-            }
-        }
-
+        JSONArray out =  Subscriber.toBeckn(records,format,version);
         return new BytesView(getPath(),out.toString().getBytes(),MimeType.APPLICATION_JSON);
 
     }
