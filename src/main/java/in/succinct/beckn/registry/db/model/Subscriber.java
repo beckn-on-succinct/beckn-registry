@@ -107,7 +107,7 @@ public interface Subscriber extends Model , GeoLocation {
     public void setUpdated(String updated);
     public String getUpdated();
 
-    public static JSONArray toBeckn(List<Subscriber> records, String format, String version) throws IOException {
+    public static JSONArray toBeckn(List<Subscriber> records, String format, String version) {
         if (!ObjectUtil.isVoid(format) ){
             if (!ObjectUtil.equals("PEM",format.toUpperCase())){
                 throw new RuntimeException("Only allowed value to be passed is PEM");
@@ -123,7 +123,11 @@ public interface Subscriber extends Model , GeoLocation {
                 "CITY","COUNTRY","SIGNING_PUBLIC_KEY","ENCR_PUBLIC_KEY","VALID_FROM","VALID_UNTIL","STATUS","CREATED","UPDATED");
 
         FormatHelper<JSONObject> outHelper = FormatHelper.instance(MimeType.APPLICATION_JSON,StringUtil.pluralize(Subscriber.class.getSimpleName()),true);
-        ModelIOFactory.getWriter(Subscriber.class,outHelper.getFormatClass()).write(records,outHelper.getRoot(),fields);
+        try {
+            ModelIOFactory.getWriter(Subscriber.class,outHelper.getFormatClass()).write(records,outHelper.getRoot(),fields);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
         outHelper.change_key_case(KeyCase.SNAKE);
         JSONArray out = new JSONArray();
         out.addAll(outHelper.getArrayElements("subscribers"));

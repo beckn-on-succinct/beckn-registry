@@ -6,6 +6,7 @@ import com.venky.swf.db.extensions.AfterModelSaveExtension;
 import com.venky.swf.db.model.application.Event;
 import com.venky.swf.plugins.background.core.DbTask;
 import com.venky.swf.plugins.background.core.TaskManager;
+import com.venky.swf.plugins.background.messaging.EventEmitter;
 import com.venky.swf.routing.Config;
 import in.succinct.beckn.registry.db.model.Subscriber;
 import in.succinct.beckn.registry.db.model.onboarding.NetworkRole;
@@ -21,26 +22,21 @@ public class AfterSaveNetworkRole extends AfterModelSaveExtension<NetworkRole> {
     }
 
     @Override
-    public void afterSave(NetworkRole subscriber) {
-        if (ObjectUtil.equals("INITIATED", subscriber.getStatus())) {
-            TaskManager.instance().executeAsync(new OnSubscribe(subscriber), false);
+    public void afterSave(NetworkRole model) {
+        if (ObjectUtil.equals("INITIATED", model.getStatus())) {
+            TaskManager.instance().executeAsync(new OnSubscribe(model), false);
         }
-        TaskManager.instance().executeAsync((DbTask)()->{
-            Subscriber subscriber1 = Database.getTable(Subscriber.class).newRecord();
-            subscriber1.setSubscriberId(subscriber.getSubscriberId());
-            try {
-                JSONArray array = Subscriber.toBeckn(Arrays.asList(subscriber1), null, subscriber.getCoreVersion());
-                if (array.size() == 1) {
-                    Event.find("on_subscriber_update").raise(array.get(0));
-                }else if (array.size() > 1){
-                    Event.find("on_subscriber_update").raise(array);
-                }
-            }catch (Exception ex){
-                Config.instance().getLogger(NetworkRole.class.getName()).log(Level.WARNING,"",ex);
-                throw new RuntimeException(ex);
-            }
+        Subscriber subscriber = Database.getTable(Subscriber.class).newRecord();
+        subscriber.setSubscriberId(model.getSubscriberId());
+        subscriber.setDomain(model.getNetworkDomain().getName());
+        subscriber.setType(model.getType());
 
-        });
+        JSONArray array = Subscriber.toBeckn(Arrays.asList(subscriber), null, model.getCoreVersion());
+        if (array.size() == 1) {
+            EventEmitter.getInstance().emit("on_subscriber_update",array.get(0));
+        }else if (array.size() > 1){
+            EventEmitter.getInstance().emit("on_subscriber_update",array);
+        }
     }
 
 
