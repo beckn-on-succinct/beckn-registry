@@ -74,7 +74,6 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
             NetworkRole disabledRole = NetworkRole.find(subscriber.getSubscriberId());
             disabledRole.setStatus(NetworkRole.SUBSCRIBER_STATUS_UNSUBSCRIBED);
             disabledRole.save();
-            Config.instance().getLogger(getClass().getName()).info("Not saving as this is test. Dry Run");
             subscriber.setStatus(disabledRole.getStatus());
         }
         if (subscribers.size() == 1){
