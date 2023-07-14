@@ -29,7 +29,7 @@
   </developers>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <revision>2.10</revision>
+        <revision>2.13-SNAPSHOT</revision>
     </properties>
     <build>
         <plugins>
@@ -52,14 +52,14 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>in.succinct.beckn</groupId>
-            <artifactId>sdk</artifactId>
-            <version>[1.2,)</version>
-        </dependency>
-        <dependency>
             <groupId>com.github.venkatramanm.swf-all</groupId>
             <artifactId>swf-plugin-collab</artifactId>
             <version>[${revision},)</version>
+        </dependency>
+        <dependency>
+            <groupId>in.succinct.beckn</groupId>
+            <artifactId>sdk</artifactId>
+            <version>[1.2,)</version>
         </dependency>
         <dependency>
             <groupId>com.github.venkatramanm.swf-all</groupId>
