@@ -28,7 +28,9 @@ public class AfterSaveNetworkRole extends AfterModelSaveExtension<NetworkRole> {
         }
         Subscriber subscriber = Database.getTable(Subscriber.class).newRecord();
         subscriber.setSubscriberId(model.getSubscriberId());
-        subscriber.setDomain(model.getNetworkDomain().getName());
+        if (model.getNetworkDomain() != null) {
+            subscriber.setDomain(model.getNetworkDomain().getName());
+        }
         subscriber.setType(model.getType());
 
         JSONArray array = Subscriber.toBeckn(Arrays.asList(subscriber), null, model.getCoreVersion());
