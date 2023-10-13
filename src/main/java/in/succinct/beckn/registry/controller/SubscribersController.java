@@ -96,7 +96,14 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
             role.setNetworkParticipantId(networkParticipant.getId());
             role.setUrl(subscriber.getSubscriberUrl());
             role.setType(subscriber.getType());
-            role.setNetworkDomainId(NetworkDomain.find(subscriber.getDomain()).getId());
+            if (!ObjectUtil.isVoid(subscriber.getDomain())) {
+                NetworkDomain domain = NetworkDomain.find(subscriber.getDomain());
+                if (!domain.getRawRecord().isNewRecord()) {
+                    role.setNetworkDomainId(NetworkDomain.find(subscriber.getDomain()).getId());
+                }else {
+                    throw new RuntimeException("Invalid domain " + subscriber.getDomain());
+                }
+            }
             role.save();
             subscriber.setStatus(role.getStatus());
 
