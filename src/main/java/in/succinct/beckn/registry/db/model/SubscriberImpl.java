@@ -22,7 +22,7 @@ public class SubscriberImpl extends ModelImpl<Subscriber> {
                 key.save();
             }
         }else if (!ObjectUtil.isVoid(subscriber.getSubscriberId())){
-            NetworkRole role = NetworkRole.find(subscriber.getSubscriberId());
+            NetworkRole role = NetworkRole.find(subscriber.getSubscriberId(),subscriber.getType());
             if (role.getRawRecord().isNewRecord()){
                 throw new RuntimeException("On boarding is necessary before subscription.");
             }

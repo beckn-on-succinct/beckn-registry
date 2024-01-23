@@ -3,6 +3,7 @@ package in.succinct.beckn.registry.controller;
 import com.venky.core.string.StringUtil;
 import com.venky.core.util.ObjectUtil;
 import com.venky.geo.GeoCoordinate;
+import com.venky.network.Network;
 import com.venky.swf.controller.VirtualModelController;
 import com.venky.swf.controller.annotations.RequireLogin;
 import com.venky.swf.db.Database;
@@ -27,6 +28,7 @@ import in.succinct.beckn.registry.db.model.onboarding.NetworkDomain;
 import in.succinct.beckn.registry.db.model.onboarding.NetworkParticipant;
 import in.succinct.beckn.registry.db.model.onboarding.NetworkRole;
 import in.succinct.beckn.registry.db.model.onboarding.OperatingRegion;
+import in.succinct.beckn.registry.db.model.onboarding.ParticipantDomain;
 import in.succinct.beckn.registry.db.model.onboarding.ParticipantKey;
 import in.succinct.beckn.registry.extensions.AfterSaveParticipantKey.OnSubscribe;
 import org.json.simple.JSONArray;
@@ -36,8 +38,11 @@ import org.json.simple.JSONValue;
 import java.io.InputStreamReader;
 import java.sql.Timestamp;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class SubscribersController extends VirtualModelController<Subscriber> {
     public SubscribersController(Path path) {
@@ -56,22 +61,26 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
 
         String pub_key_id = params.get("pub_key_id");
         String subscriber_id = params.get("subscriber_id");
-        NetworkRole role =  NetworkRole.find(subscriber_id);
         ParticipantKey signedWithKey = ParticipantKey.find(pub_key_id);
         if (!signedWithKey.isVerified()){
             throw new RuntimeException("Your signing key is not verified by the registrar! Please contact registrar or sign with a verified key.");
         }
-        if (!ObjectUtil.equals(role.getNetworkParticipantId() ,signedWithKey.getNetworkParticipantId())){
-            throw new RuntimeException("Key signed with is not registered against you. Please contact registrar");
-        }
         if (!request.verifySignature("X-Gateway-Authorization",getPath().getHeaders(),true)){
             throw new RuntimeException("Signature Verification failed");
+        }
+        NetworkRole role = NetworkRole.find(subscriber_id,NetworkRole.SUBSCRIBER_TYPE_BG);
+        if (role.getRawRecord().isNewRecord()){
+            throw new RuntimeException("Invalid Subscriber : " + subscriber_id) ;
+        }
+
+        if (!ObjectUtil.equals(role.getNetworkParticipantId() ,signedWithKey.getNetworkParticipantId())){
+            throw new RuntimeException("Key signed with is not registered against you. Please contact registrar");
         }
 
 
         List<Subscriber> subscribers = getIntegrationAdaptor().readRequest(getPath());
         for (Subscriber subscriber :subscribers) {
-            NetworkRole disabledRole = NetworkRole.find(subscriber.getSubscriberId());
+            NetworkRole disabledRole =  NetworkRole.find(subscriber.getSubscriberId(),NetworkRole.SUBSCRIBER_TYPE_BPP);
             disabledRole.setStatus(NetworkRole.SUBSCRIBER_STATUS_UNSUBSCRIBED);
             disabledRole.save();
             subscriber.setStatus(disabledRole.getStatus());
@@ -96,15 +105,19 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
             role.setNetworkParticipantId(networkParticipant.getId());
             role.setUrl(subscriber.getSubscriberUrl());
             role.setType(subscriber.getType());
+            role.save();
             if (!ObjectUtil.isVoid(subscriber.getDomain())) {
                 NetworkDomain domain = NetworkDomain.find(subscriber.getDomain());
                 if (!domain.getRawRecord().isNewRecord()) {
-                    role.setNetworkDomainId(NetworkDomain.find(subscriber.getDomain()).getId());
+                    ParticipantDomain participantDomain = Database.getTable(ParticipantDomain.class).newRecord();
+                    participantDomain.setNetworkDomainId(domain.getId());
+                    participantDomain.setNetworkRoleId(role.getId());
+                    participantDomain = Database.getTable(ParticipantDomain.class).getRefreshed(participantDomain);
+                    participantDomain.save();
                 }else {
                     throw new RuntimeException("Invalid domain " + subscriber.getDomain());
                 }
             }
-            role.save();
             subscriber.setStatus(role.getStatus());
 
             ParticipantKey key = Database.getTable(ParticipantKey.class).newRecord();
@@ -136,11 +149,11 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
 
         String pub_key_id = params.get("pub_key_id");
         String subscriber_id = params.get("subscriber_id");
-        NetworkRole role =  NetworkRole.find(subscriber_id);
         ParticipantKey signedWithKey = ParticipantKey.find(pub_key_id);
         if (!signedWithKey.isVerified()){
             throw new RuntimeException("Your signing key is not verified by the registrar! Please contact registrar or sign with a verified key.");
         }
+        NetworkRole role = NetworkRole.find(subscriber_id,null);
         if (!ObjectUtil.equals(role.getNetworkParticipantId() ,signedWithKey.getNetworkParticipantId())){
             throw new RuntimeException("Key signed with is not registered against you. Please contact registrar");
         }
@@ -158,6 +171,7 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
             return getReturnIntegrationAdaptor().createResponse(getPath(),subscriber,Arrays.asList("STATUS"));
         }else {
             for (Subscriber subscriber : subscribers){
+
                 if (!ObjectUtil.isVoid(subscriber.getSubscriberId())){
                     if (!ObjectUtil.equals(subscriber.getSubscriberId(),role.getSubscriberId())){
                         throw new RuntimeException("Cannot sign for a different subscriber!");
@@ -166,24 +180,24 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
                     subscriber.setSubscriberId(role.getSubscriberId());
                 }
 
+                role = NetworkRole.find(subscriber.getSubscriberId(),subscriber.getType());
                 ParticipantKey newKey = null;
                 if (!ObjectUtil.isVoid(subscriber.getPubKeyId())){
                     newKey = ParticipantKey.find(subscriber.getPubKeyId());
-                }
-                if (newKey != null){
+
                     if (!ObjectUtil.isVoid(subscriber.getSigningPublicKey())) {
-                        newKey.setSigningPublicKey(Request.getRawSigningKey(subscriber.getSigningPublicKey()));
+                        newKey.setSigningPublicKey(subscriber.getSigningPublicKey());
                     }
                     if (!ObjectUtil.isVoid(subscriber.getEncrPublicKey())){
-                        newKey.setEncrPublicKey(Request.getRawEncryptionKey(subscriber.getEncrPublicKey()));
+                        newKey.setEncrPublicKey(subscriber.getEncrPublicKey());
                     }
 
-                    if (!newKey.getRawRecord().isNewRecord() &&  newKey.isVerified()){
-                        if (newKey.isDirty()) {
+                    if (newKey.getRawRecord().isNewRecord()){
+                        newKey.setVerified(false);
+                    }else if (newKey.isDirty() ){
+                        if (newKey.isVerified()) {
                             throw new RuntimeException("Cannot modify a verified registered key. Please create a new key.");
                         }
-                    }else {
-                        newKey.setVerified(false);
                     }
                     newKey.setNetworkParticipantId(role.getNetworkParticipantId());
                     if (!ObjectUtil.isVoid(subscriber.getValidFrom())){
@@ -192,18 +206,7 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
                     if (!ObjectUtil.isVoid(subscriber.getValidUntil())){
                         newKey.setValidUntil(new Timestamp(BecknObject.TIMESTAMP_FORMAT.parse(subscriber.getValidUntil()).getTime()));
                     }
-                    if (newKey.getValidUntil() != null  && newKey.getValidUntil().getTime() <= System.currentTimeMillis()){
-                        newKey.setVerified(false);
-                    }
-                    newKey.save();
-                    TaskManager.instance().executeAsync(new OnSubscribe(newKey),false);
-
-                }
-                if (!newKey.isVerified()){
-                    newKey.setEncrPublicKey(subscriber.getEncrPublicKey());
-                    newKey.setSigningPublicKey(subscriber.getSigningPublicKey());
-                    newKey.setVerified(false);
-
+                    newKey.save(); //After save triggers on_subscribe                    
                 }
                 if (!ObjectUtil.isVoid(subscriber.getSubscriberUrl())){
                     role.setUrl(subscriber.getSubscriberUrl());
@@ -221,11 +224,18 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
                         }
                     }
                     role.setStatus(NetworkRole.SUBSCRIBER_STATUS_INITIATED);
-                    role.save();
-                    TaskManager.instance().executeAsync(new OnSubscribe(role),false);
+                    role.save(); // After save triggers "on_subscribe call"
                 }
                 subscriber.setStatus(role.getStatus());
                 loadRegion(subscriber,role);
+                if (!ObjectUtil.isVoid(subscriber.getDomain())){
+                    NetworkDomain domain = NetworkDomain.find(subscriber.getDomain());
+                    ParticipantDomain participantDomain = Database.getTable(ParticipantDomain.class).newRecord();
+                    participantDomain.setNetworkRoleId(role.getId());
+                    participantDomain.setNetworkDomainId(domain.getId());
+                    participantDomain  = Database.getTable(ParticipantDomain.class).getRefreshed(participantDomain);
+                    participantDomain.save();
+                }
             }
             if (subscribers.size() == 1){
                 return getReturnIntegrationAdaptor().createResponse(getPath(),subscribers.get(0),Arrays.asList("STATUS"));
@@ -330,7 +340,11 @@ public class SubscribersController extends VirtualModelController<Subscriber> {
         if (subscriberId == null) {
             throw new RuntimeException("Cannot identify Subscriber");
         }
-        NetworkRole networkRole = NetworkRole.find(subscriberId);
+        NetworkRole networkRole = NetworkRole.find(subscriberId,NetworkRole.SUBSCRIBER_TYPE_BPP);
+
+        if (networkRole.getRawRecord().isNewRecord()){
+            throw new RuntimeException("Could not identify subscriber");
+        }
 
         Location location = new Location(payload);
 

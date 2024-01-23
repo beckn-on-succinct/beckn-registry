@@ -3,7 +3,13 @@ package in.succinct.beckn.registry.extensions;
 import com.venky.core.string.StringUtil;
 import com.venky.core.util.ObjectUtil;
 import com.venky.swf.db.extensions.BeforeModelValidateExtension;
+import com.venky.swf.sql.Expression;
+import com.venky.swf.sql.Operator;
+import com.venky.swf.sql.Select;
 import in.succinct.beckn.registry.db.model.onboarding.NetworkRole;
+
+import java.util.HashSet;
+import java.util.Set;
 
 public class BeforeValidateNetworkRole extends BeforeModelValidateExtension<NetworkRole> {
     static {
@@ -25,5 +31,19 @@ public class BeforeValidateNetworkRole extends BeforeModelValidateExtension<Netw
                     StringUtil.valueOf(domain),
                     StringUtil.valueOf(model.getType())));
         }
+        if (model.getNetworkParticipantId() != null) {
+            Select select = new Select().from(NetworkRole.class);
+            select.where(new Expression(select.getPool(), "SUBSCRIBER_ID", Operator.EQ, model.getSubscriberId()));
+
+            Set<Long> participants = new HashSet<>();
+            participants.add(model.getNetworkParticipantId());
+            for (NetworkRole networkRole : select.execute(NetworkRole.class)) {
+                participants.add(networkRole.getNetworkParticipantId());
+            }
+            if (participants.size() > 1){
+                throw new RuntimeException("Subscriber cannot belong to multiple Participants ");
+            }
+        }
+
     }
 }

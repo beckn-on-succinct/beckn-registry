@@ -11,17 +11,32 @@ import com.venky.swf.db.annotations.column.ui.HIDDEN;
 import com.venky.swf.db.annotations.column.validations.Enumeration;
 import com.venky.swf.db.annotations.model.HAS_DESCRIPTION_FIELD;
 import com.venky.swf.db.model.Model;
+import com.venky.swf.sql.Expression;
+import com.venky.swf.sql.Operator;
+import com.venky.swf.sql.Select;
+
 
 import java.util.List;
 
 @HAS_DESCRIPTION_FIELD("SUBSCRIBER_ID")
 public interface NetworkRole extends Model {
-    static NetworkRole find(String subscriberId) {
+    static NetworkRole find(String subscriberId,String type) {
+        Select select = new Select().from(NetworkRole.class);
+        select.where(new Expression(select.getPool(),"SUBSCRIBER_ID", Operator.EQ,subscriberId));
+        if (type != null) {
+            select.where(new Expression(select.getPool(), "TYPE", Operator.EQ, type));
+        }
 
-        NetworkRole role = Database.getTable(NetworkRole.class).newRecord();
-        role.setSubscriberId(subscriberId);
-        role = Database.getTable(NetworkRole.class).getRefreshed(role);
-        return role;
+        List<NetworkRole> roles = select.execute();
+        NetworkRole networkRole = null;
+        if (roles.isEmpty()){
+            networkRole = Database.getTable(NetworkRole.class).newRecord();
+            networkRole.setSubscriberId(subscriberId);
+            networkRole.setType(type);
+        }else {
+            networkRole = roles.get(0);
+        }
+        return networkRole;
     }
 
     @HIDDEN
@@ -34,11 +49,14 @@ public interface NetworkRole extends Model {
     public void setNetworkParticipantId(Long id);
     public NetworkParticipant getNetworkParticipant();
 
-    @UNIQUE_KEY
+
     @Index
+    @HIDDEN
     public Long getNetworkDomainId();
     public void setNetworkDomainId(Long id);
     public NetworkDomain getNetworkDomain();
+
+    public List<ParticipantDomain> getParticipantDomains();
 
     @COLUMN_DEF(value = StandardDefault.SOME_VALUE,args = "v0")
     public String getCoreVersion();
@@ -58,10 +76,10 @@ public interface NetworkRole extends Model {
             SUBSCRIBER_TYPE_LOCAL_REGISTRY + "," + SUBSCRIBER_TYPE_COUNTRY_REGISTRY + "," + SUBSCRIBER_TYPE_ROOT_REGISTRY + "," + SUBSCRIBER_TYPE_BG;
 
     @Enumeration( SUBSCRIBER_ENUM )
-    @UNIQUE_KEY(allowMultipleRecordsWithNull = false)
+    @UNIQUE_KEY(value = "K1,K2",allowMultipleRecordsWithNull = false)
     @Index
     @IS_NULLABLE
-    public String getType();
+    public String   getType();
     public void setType(String type);
 
 
