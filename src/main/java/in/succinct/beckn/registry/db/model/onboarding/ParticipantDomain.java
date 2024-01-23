@@ -1,6 +1,8 @@
 package in.succinct.beckn.registry.db.model.onboarding;
 
 import com.venky.swf.db.annotations.column.UNIQUE_KEY;
+import com.venky.swf.db.annotations.column.indexing.Index;
+import com.venky.swf.db.annotations.column.pm.PARTICIPANT;
 import com.venky.swf.db.annotations.column.ui.HIDDEN;
 import com.venky.swf.db.model.Model;
 
@@ -17,5 +19,8 @@ public interface ParticipantDomain extends Model {
     public void setNetworkDomainId(Long id);
     public NetworkDomain getNetworkDomain();
 
+    @Index
+    @PARTICIPANT
+    public Long getCreatorUserId();
 
 }

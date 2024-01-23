@@ -6,6 +6,7 @@ import com.venky.swf.db.annotations.column.COLUMN_SIZE;
 import com.venky.swf.db.annotations.column.IS_NULLABLE;
 import com.venky.swf.db.annotations.column.UNIQUE_KEY;
 import com.venky.swf.db.annotations.column.defaulting.StandardDefault;
+import com.venky.swf.db.annotations.column.indexing.Index;
 import com.venky.swf.db.annotations.column.pm.PARTICIPANT;
 import com.venky.swf.db.model.Model;
 
@@ -57,4 +58,8 @@ public interface ParticipantKey extends Model {
     /* Once challenge is resolved , this key would be marked as verified
      or primary first key could be marked verified manually,*/
 
+
+    @Index
+    @PARTICIPANT
+    public Long getCreatorUserId();
 }
