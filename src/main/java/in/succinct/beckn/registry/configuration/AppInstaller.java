@@ -8,39 +8,20 @@ import com.venky.swf.db.model.CryptoKey;
 import com.venky.swf.plugins.collab.db.model.config.Country;
 import com.venky.swf.plugins.collab.db.model.config.State;
 import com.venky.swf.routing.Config;
-import com.venky.swf.sql.Expression;
-import com.venky.swf.sql.Operator;
-import com.venky.swf.sql.Select;
 import in.succinct.beckn.Request;
 import in.succinct.beckn.registry.db.model.City;
 import in.succinct.beckn.registry.db.model.onboarding.NetworkParticipant;
 import in.succinct.beckn.registry.db.model.onboarding.NetworkRole;
-import in.succinct.beckn.registry.db.model.onboarding.ParticipantDomain;
 import in.succinct.beckn.registry.db.model.onboarding.ParticipantKey;
 
 import java.security.KeyPair;
 import java.sql.Timestamp;
-import java.util.List;
 
 public class AppInstaller implements Installer {
 
     public void install() {
         insertDefaultCities();
         generateBecknKeys();
-        migrateToParticipantDomains();
-    }
-    private void migrateToParticipantDomains(){
-        Select select = new Select().from(NetworkRole.class);
-        select.where(new Expression(select.getPool(),"NETWORK_DOMAIN_ID",Operator.NE));
-        select.execute(NetworkRole.class).forEach(r->{
-            ParticipantDomain participantDomain = Database.getTable(ParticipantDomain.class).newRecord();
-            participantDomain.setNetworkDomainId(r.getNetworkDomainId());
-            participantDomain.setNetworkRoleId(r.getId());
-            participantDomain.save();
-            r.setNetworkDomainId(null);
-            r.save();
-        });
-
     }
 
     private void insertDefaultCities() {
@@ -110,12 +91,8 @@ public class AppInstaller implements Installer {
             participantKey.save();
         }
         String subscriberId = String.format("%s.%s.%s", StringUtil.valueOf(participant.getParticipantId()),"",NetworkRole.SUBSCRIBER_TYPE_LOCAL_REGISTRY);
-        Select select = new Select().from(NetworkRole.class);
-        select.where(new Expression(select.getPool(),"SUBSCRIBER_ID", Operator.EQ,subscriberId));
-        List<NetworkRole> subscriptions = select.execute();
-        if (subscriptions.isEmpty()){
-            NetworkRole role = Database.getTable(NetworkRole.class).newRecord() ;
-            role.setSubscriberId(subscriberId);
+        NetworkRole role = NetworkRole.find(subscriberId);
+        if (role.getRawRecord().isNewRecord()){
             role.setNetworkParticipantId(participant.getId());
             role.setStatus(NetworkRole.SUBSCRIBER_STATUS_SUBSCRIBED);
             role.setType(NetworkRole.SUBSCRIBER_TYPE_LOCAL_REGISTRY);

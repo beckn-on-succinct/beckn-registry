@@ -1,5 +1,6 @@
 package in.succinct.beckn.registry.db.model.onboarding;
 
+import com.venky.core.util.ObjectUtil;
 import com.venky.swf.db.Database;
 import com.venky.swf.db.annotations.column.COLUMN_DEF;
 import com.venky.swf.db.annotations.column.IS_NULLABLE;
@@ -11,36 +12,64 @@ import com.venky.swf.db.annotations.column.ui.HIDDEN;
 import com.venky.swf.db.annotations.column.validations.Enumeration;
 import com.venky.swf.db.annotations.model.HAS_DESCRIPTION_FIELD;
 import com.venky.swf.db.model.Model;
+import com.venky.swf.sql.Conjunction;
 import com.venky.swf.sql.Expression;
 import com.venky.swf.sql.Operator;
 import com.venky.swf.sql.Select;
+import in.succinct.beckn.Subscriber;
 
 
 import java.util.List;
 
 @HAS_DESCRIPTION_FIELD("SUBSCRIBER_ID")
 public interface NetworkRole extends Model {
-    static NetworkRole find(String subscriberId,String type) {
-        Select select = new Select().from(NetworkRole.class);
-        select.where(new Expression(select.getPool(),"SUBSCRIBER_ID", Operator.EQ,subscriberId));
-        if (type != null) {
-            select.where(new Expression(select.getPool(), "TYPE", Operator.EQ, type));
-        }
-
-        List<NetworkRole> roles = select.execute();
+    static NetworkRole find(String subscriberId) {
+        return find(new Subscriber(){{
+            setSubscriberId(subscriberId);
+        }});
+    }
+    static NetworkRole find(Subscriber subscriber) {
+        List<NetworkRole> roles = all(subscriber);
         NetworkRole networkRole = null;
         if (roles.isEmpty()){
             networkRole = Database.getTable(NetworkRole.class).newRecord();
-            networkRole.setSubscriberId(subscriberId);
-            networkRole.setType(type);
+            networkRole.setSubscriberId(subscriber.getSubscriberId());
+            if (!ObjectUtil.isVoid(subscriber.getDomain())) {
+                NetworkDomain networkDomain = NetworkDomain.find(subscriber.getDomain());
+                if (networkDomain.getRawRecord().isNewRecord()){
+                    throw new RuntimeException("Invalid domain" + subscriber.getDomain());
+                }
+                networkRole.setNetworkDomainId(networkDomain.getId());
+            }
+            if (ObjectUtil.isVoid(subscriber.getType())){
+                networkRole.setType(subscriber.getType());
+            }
         }else {
             networkRole = roles.get(0);
         }
         return networkRole;
     }
+    static List<NetworkRole> all(Subscriber subscriber) {
+        Select select = new Select().from(NetworkRole.class);
+        Expression expression = new Expression(select.getPool(), Conjunction.AND);
+        expression.add(new Expression(select.getPool(),"SUBSCRIBER_ID", Operator.EQ,subscriber.getSubscriberId()));
 
+        if (!ObjectUtil.isVoid(subscriber.getType())){
+            expression.add(new Expression(select.getPool(),"TYPE", Operator.EQ,subscriber.getType()));
+        }
+
+        if (!ObjectUtil.isVoid(subscriber.getDomain())){
+            NetworkDomain domain = NetworkDomain.find(subscriber.getDomain());
+            if (domain.getRawRecord().isNewRecord()){
+                throw new RuntimeException("Invalid domain");
+            }
+            expression.add(new Expression(select.getPool(),"NETWORK_DOMAIN_ID", Operator.EQ,domain.getId()));
+        }
+
+        return select.where(expression).execute();
+    }
     @HIDDEN
-    @UNIQUE_KEY
+    @UNIQUE_KEY(value = "K1")
     @Index
     @IS_NULLABLE(false)
     @PARTICIPANT
@@ -53,14 +82,11 @@ public interface NetworkRole extends Model {
     @PARTICIPANT
     public Long getCreatorUserId();
 
-    @UNIQUE_KEY
+    @UNIQUE_KEY(value = "K1,K2",allowMultipleRecordsWithNull = false)
     @Index
-    @HIDDEN
     public Long getNetworkDomainId();
     public void setNetworkDomainId(Long id);
     public NetworkDomain getNetworkDomain();
-
-    public List<ParticipantDomain> getParticipantDomains();
 
     @COLUMN_DEF(value = StandardDefault.SOME_VALUE,args = "v0")
     public String getCoreVersion();

@@ -55,6 +55,20 @@ public class AfterSaveParticipantKey extends AfterModelSaveExtension<Participant
         }
 
         @Override
+        public int hashCode() {
+            StringBuilder x = new StringBuilder();
+            if (role!= null){
+                x.append(role.getUrl());
+            }
+            x.append(":");
+            if (participantKey != null){
+                x.append(participantKey.getKeyId());
+            }
+            return x.toString().hashCode();
+            //To prevent duplicate on_subscribes to the same url and key
+        }
+
+        @Override
         public void execute() {
             if (this.role == null && this.participantKey == null){
                 return;
