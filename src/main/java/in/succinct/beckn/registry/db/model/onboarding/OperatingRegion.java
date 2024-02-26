@@ -27,15 +27,16 @@ public interface OperatingRegion extends Model, GeoLocation {
     public Country getCountry();
 
     @IS_NULLABLE
-    @UNIQUE_KEY
+    @UNIQUE_KEY(allowMultipleRecordsWithNull = false)
     public Long getCityId();
     public void setCityId(Long id);
     public City getCity();
 
-    @UNIQUE_KEY
+    @UNIQUE_KEY(allowMultipleRecordsWithNull = false)
+
     public BigDecimal getLat();
 
-    @UNIQUE_KEY
+    @UNIQUE_KEY(allowMultipleRecordsWithNull = false)
     public BigDecimal getLng();
 
     @IS_NULLABLE
