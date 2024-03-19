@@ -133,10 +133,10 @@ public class SubscribersController extends Controller {
             role.setNetworkParticipantId(networkParticipant.getId());
             role.setUrl(subscriber.getSubscriberUrl());
             role.setType(subscriber.getType());
+            if (subscriber.getDomains() == null) {
+                subscriber.setDomains(new Domains());
+            }
             if (!ObjectUtil.isVoid(subscriber.getDomain())) {
-                if (subscriber.getDomains() == null) {
-                    subscriber.setDomains(new Domains());
-                }
                 subscriber.getDomains().add(subscriber.getDomain());
             }
             if (subscriber.getDomains().isEmpty()){
