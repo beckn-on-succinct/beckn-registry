@@ -1,6 +1,5 @@
 package in.succinct.beckn.registry.controller;
 
-import com.google.cloud.storage.Acl.Domain;
 import com.venky.core.date.DateUtils;
 import com.venky.core.string.StringUtil;
 import com.venky.core.util.ObjectUtil;
@@ -17,6 +16,7 @@ import com.venky.swf.plugins.background.core.TaskManager;
 import com.venky.swf.plugins.collab.db.model.config.City;
 import com.venky.swf.plugins.collab.db.model.config.Country;
 import com.venky.swf.plugins.lucene.index.LuceneIndexer;
+import com.venky.swf.routing.Config;
 import com.venky.swf.sql.Conjunction;
 import com.venky.swf.sql.Expression;
 import com.venky.swf.sql.Operator;
@@ -27,15 +27,18 @@ import in.succinct.beckn.Request;
 import in.succinct.beckn.Subscriber;
 import in.succinct.beckn.Subscriber.Domains;
 import in.succinct.beckn.Subscribers;
+import in.succinct.beckn.registry.db.model.onboarding.DocumentPurpose;
 import in.succinct.beckn.registry.db.model.onboarding.NetworkDomain;
 import in.succinct.beckn.registry.db.model.onboarding.NetworkParticipant;
 import in.succinct.beckn.registry.db.model.onboarding.NetworkRole;
 import in.succinct.beckn.registry.db.model.onboarding.OperatingRegion;
 import in.succinct.beckn.registry.db.model.onboarding.ParticipantKey;
+import in.succinct.beckn.registry.db.model.onboarding.SubmittedDocument;
+import in.succinct.beckn.registry.db.model.onboarding.VerifiableDocument;
 import in.succinct.beckn.registry.extensions.AfterSaveParticipantKey.OnSubscribe;
 import in.succinct.json.JSONAwareWrapper;
-import org.apache.lucene.index.DocIDMerger.Sub;
 import org.apache.lucene.search.Query;
+import org.jetbrains.annotations.NotNull;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONAware;
 import org.json.simple.JSONObject;
@@ -44,6 +47,7 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -101,8 +105,14 @@ public class SubscribersController extends Controller {
 
 
     @RequireLogin(false)
-    public  <T> View register() throws Exception{
-        String payload = StringUtil.read(getPath().getInputStream());
+    public  View register() {
+
+        String payload = null ;
+        try {
+            payload = StringUtil.read(getPath().getInputStream());
+        }catch (Exception ex){
+            throw new RuntimeException(ex);
+        }
         JSONAware jsonAware =JSONAwareWrapper.parse(payload);
         Subscribers subscribers = new Subscribers();
         if (jsonAware instanceof JSONObject){
@@ -502,6 +512,11 @@ public class SubscribersController extends Controller {
     }
     static Subscriber getSubscriber(ParticipantKey criteriaKey , NetworkRole networkRole, OperatingRegion region, KeyFormatFixer fixer) {
         ParticipantKey key = null;
+        if (Config.instance().getBooleanProperty("beckn.require.kyc",false)){
+            if (!networkRole.getNetworkParticipant().isKycComplete()){
+                return null;
+            }
+        }
 
         List<ParticipantKey> keys ;
         if (criteriaKey != null){
@@ -518,6 +533,13 @@ public class SubscribersController extends Controller {
         }else {
             key = keys.get(0);
         }
+        Subscriber subscriber = getSubscriber(networkRole, region, key);
+        fixer.fix(subscriber);
+        return subscriber;
+    }
+
+    @NotNull
+    private static Subscriber getSubscriber(NetworkRole networkRole, OperatingRegion region, ParticipantKey key) {
         Subscriber subscriber = new Subscriber();
 
         subscriber.setSubscriberId(networkRole.getSubscriberId());
@@ -546,7 +568,6 @@ public class SubscribersController extends Controller {
         }
         subscriber.setCreated(networkRole.getCreatedAt());
         subscriber.setUpdated(networkRole.getUpdatedAt());
-        fixer.fix(subscriber);
         return subscriber;
     }
 }
