@@ -1,10 +1,12 @@
 package in.succinct.beckn.registry.db.model.onboarding;
 
 import com.venky.swf.db.Database;
+import com.venky.swf.db.annotations.column.COLUMN_DEF;
 import com.venky.swf.db.annotations.column.COLUMN_NAME;
 import com.venky.swf.db.annotations.column.HOUSEKEEPING;
 import com.venky.swf.db.annotations.column.IS_VIRTUAL;
 import com.venky.swf.db.annotations.column.UNIQUE_KEY;
+import com.venky.swf.db.annotations.column.defaulting.StandardDefault;
 import com.venky.swf.db.annotations.column.indexing.Index;
 import com.venky.swf.db.annotations.column.pm.PARTICIPANT;
 import com.venky.swf.db.annotations.column.ui.HIDDEN;
@@ -27,6 +29,7 @@ public interface NetworkParticipant extends Model {
     public void setParticipantId(String id);
 
     @PROTECTION(Kind.DISABLED)
+    @COLUMN_DEF(StandardDefault.BOOLEAN_FALSE)
     public boolean isKycComplete();
     public void setKycComplete(boolean kycComplete);
 
