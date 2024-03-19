@@ -43,6 +43,7 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONAware;
 import org.json.simple.JSONObject;
 
+import javax.xml.crypto.Data;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -138,16 +139,23 @@ public class SubscribersController extends Controller {
                 }
                 subscriber.getDomains().add(subscriber.getDomain());
             }
-            for (String domainName : subscriber.getDomains()){
-                NetworkDomain domain = NetworkDomain.find(domainName);
-                if (!domain.getRawRecord().isNewRecord()) {
-                    role.setNetworkDomainId(domain.getId());
-                }else {
-                    throw new RuntimeException("Invalid domain " + subscriber.getDomain());
-                }
+            if (subscriber.getDomains().isEmpty()){
                 role.save();
+                loadRegion(subscriber,role);
+            }else {
+                for (String domainName : subscriber.getDomains()) {
+                    NetworkDomain domain = NetworkDomain.find(domainName);
+                    if (!domain.getRawRecord().isNewRecord()) {
+                        role.setNetworkDomainId(domain.getId());
+                    } else {
+                        throw new RuntimeException("Invalid domain " + subscriber.getDomain());
+                    }
+                    NetworkRole newRole = Database.getTable(NetworkRole.class).getRefreshed(role);
+                    newRole.save();
+                    loadRegion(subscriber,newRole);
+                }
             }
-            subscriber.setStatus(role.getStatus());
+            subscriber.setStatus(Subscriber.SUBSCRIBER_STATUS_INITIATED);
             ParticipantKey key = Database.getTable(ParticipantKey.class).newRecord();
             key.setKeyId(subscriber.getPubKeyId());
             key.setVerified(true);
@@ -162,7 +170,6 @@ public class SubscribersController extends Controller {
             key.setValidUntil(new Timestamp(subscriber.getValidTo().getTime()));
             key.save();
 
-            loadRegion(subscriber,role);
         }
         if (subscribers.size() == 1){
             return new BytesView(getPath(),subscribers.getInner().get(0).toString().getBytes(StandardCharsets.UTF_8),MimeType.APPLICATION_JSON);
