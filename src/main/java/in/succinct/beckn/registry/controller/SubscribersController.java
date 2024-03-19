@@ -225,6 +225,9 @@ public class SubscribersController extends Controller {
                     subscriber.setDomains(new Domains());
                     subscriber.getDomains().add(subscriber.getDomain());
                 }
+                if (subscriber.getDomains().isEmpty()){
+                    subscriber.getDomains().add(null);
+                }
                 if (!ObjectUtil.isVoid(subscriber.getSubscriberId())){
                     if (!ObjectUtil.equals(subscriber.getSubscriberId(),role.getSubscriberId())){
                         throw new RuntimeException("Cannot sign for a different subscriber!");
@@ -256,29 +259,28 @@ public class SubscribersController extends Controller {
                     } //Canc change validity
                     keyPassed.save(); //After save triggers on_subscribe
                 }
-
-                for (String sDomain : subscriber.getDomains()){
+                for (String sDomain : subscriber.getDomains()) {
                     Subscriber outSubscriber = new Subscriber(subscriber.toString());
                     long networkParticipantId = role.getNetworkParticipantId();
-                    role = NetworkRole.find(new Subscriber(){{
+                    role = NetworkRole.find(new Subscriber() {{
                         setSubscriberId(subscriber.getSubscriberId());
                         setDomain(sDomain);
                         setType(subscriber.getType());
                     }});
                     role.setNetworkParticipantId(networkParticipantId);
-                    if (!ObjectUtil.isVoid(subscriber.getSubscriberUrl())){
+                    if (!ObjectUtil.isVoid(subscriber.getSubscriberUrl())) {
                         role.setUrl(subscriber.getSubscriberUrl());
                     }
-                    if (role.isDirty()){
-                        if (ObjectUtil.equals(role.getStatus(),NetworkRole.SUBSCRIBER_STATUS_SUBSCRIBED)){
-                            if (newKeyPassed){
+                    if (role.isDirty()) {
+                        if (ObjectUtil.equals(role.getStatus(), NetworkRole.SUBSCRIBER_STATUS_SUBSCRIBED)) {
+                            if (newKeyPassed) {
                                 throw new RuntimeException("Cannot create a new  key and modify your subscription in the same call.");
                             }
                         }
                         role.setStatus(NetworkRole.SUBSCRIBER_STATUS_INITIATED);
                         role.save(); // After save triggers "on_subscribe call"
                     }
-                    loadRegion(subscriber,role);
+                    loadRegion(subscriber, role);
                     outSubscriber.setStatus(role.getStatus());
                     outSubscribers.add(outSubscriber);
                 }
