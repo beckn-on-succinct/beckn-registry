@@ -37,6 +37,7 @@ import in.succinct.beckn.registry.db.model.onboarding.SubmittedDocument;
 import in.succinct.beckn.registry.db.model.onboarding.VerifiableDocument;
 import in.succinct.beckn.registry.extensions.AfterSaveParticipantKey.OnSubscribe;
 import in.succinct.json.JSONAwareWrapper;
+import org.apache.lucene.index.DocIDMerger.Sub;
 import org.apache.lucene.search.Query;
 import org.jetbrains.annotations.NotNull;
 import org.json.simple.JSONArray;
@@ -487,9 +488,13 @@ public class SubscribersController extends Controller {
         List<NetworkRole> okroles = okSelectNetworkRole.execute();
 
         for (NetworkRole role : okroles) {
-            Subscriber subscriber = getSubscriber(key,role,null,fixer);
-            if (subscriber != null) {
-                subscribers.add(subscriber);
+            List<ParticipantKey> participantKeys = new ArrayList<>();
+
+            Subscribers ss = getSubscribers(key,role,null,fixer);
+            if (ss != null) {
+                for (Subscriber s : ss){
+                    subscribers.add(s);
+                }
             }
         }
 
@@ -505,9 +510,11 @@ public class SubscribersController extends Controller {
                                 finalNetworkRoleIds.toArray())).execute();
 
                 for (NetworkRole networkRole : regionMatchingSubscriptions) {
-                    Subscriber subscriber = getSubscriber(key, networkRole, null,fixer);
-                    if (subscriber != null) {
-                        subscribers.add(subscriber);
+                    Subscribers ss = getSubscribers(key, networkRole, null,fixer);
+                    if (ss != null) {
+                        for (Subscriber s : ss) {
+                            subscribers.add(s);
+                        }
                     }
                 }
             }
@@ -519,8 +526,8 @@ public class SubscribersController extends Controller {
     public interface KeyFormatFixer {
         public void fix(Subscriber subscriber);
     }
-    static Subscriber getSubscriber(ParticipantKey criteriaKey , NetworkRole networkRole, OperatingRegion region, KeyFormatFixer fixer) {
-        ParticipantKey key = null;
+    static Subscribers getSubscribers(ParticipantKey criteriaKey , NetworkRole networkRole, OperatingRegion region, KeyFormatFixer fixer) {
+        //ParticipantKey key = null;
         if (Config.instance().getBooleanProperty("beckn.require.kyc",false)){
             if (!networkRole.getNetworkParticipant().isKycComplete()){
                 return null;
@@ -540,11 +547,14 @@ public class SubscribersController extends Controller {
         if (keys.isEmpty()){
             return null;
         }else {
-            key = keys.get(0);
+            Subscribers subscribers = new Subscribers();
+            for (ParticipantKey key : keys){
+                Subscriber subscriber = getSubscriber(networkRole, region, key);
+                fixer.fix(subscriber);
+                subscribers.add(subscriber);
+            }
+            return subscribers;
         }
-        Subscriber subscriber = getSubscriber(networkRole, region, key);
-        fixer.fix(subscriber);
-        return subscriber;
     }
 
     @NotNull
