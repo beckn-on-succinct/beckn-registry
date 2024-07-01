@@ -20,7 +20,7 @@ public class NetworkParticipantExtension extends ParticipantExtension<NetworkPar
         registerExtension(new NetworkParticipantExtension());
     }
     @Override
-    protected List<Long> getAllowedFieldValues(User user, NetworkParticipant partiallyFilledModel, String fieldName) {
+    public List<Long> getAllowedFieldValues(User user, NetworkParticipant partiallyFilledModel, String fieldName) {
         if (ObjectUtil.equals(fieldName,"CREATOR_USER_ID")){
             if (user.getRawRecord().getAsProxy(com.venky.swf.plugins.collab.db.model.user.User.class).isStaff()){
                 return null;
