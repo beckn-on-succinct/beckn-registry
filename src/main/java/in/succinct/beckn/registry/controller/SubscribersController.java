@@ -46,6 +46,7 @@ import org.json.simple.JSONObject;
 
 import javax.xml.crypto.Data;
 import java.nio.charset.StandardCharsets;
+import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -57,6 +58,7 @@ import java.util.stream.Collectors;
 
 @SuppressWarnings("unused")
 public class SubscribersController extends Controller {
+
     public SubscribersController(Path path) {
         super(path);
     }
@@ -66,65 +68,107 @@ public class SubscribersController extends Controller {
 
         String payload = StringUtil.read(getPath().getInputStream());
         Request request = new Request(payload);
-        Map<String,String> params = request.extractAuthorizationParams("X-Gateway-Authorization",getPath().getHeaders());
-        if (params.isEmpty()){
+        Map<String, String> params = request.extractAuthorizationParams("X-Gateway-Authorization", getPath().getHeaders());
+        if (params.isEmpty()) {
             throw new RuntimeException("Signature Verification failed");
         }
 
         String pub_key_id = params.get("pub_key_id");
         String subscriber_id = params.get("subscriber_id");
         ParticipantKey signedWithKey = ParticipantKey.find(pub_key_id);
-        if (!signedWithKey.isVerified()){
+        if (!signedWithKey.isVerified()) {
             throw new RuntimeException("Your signing key is not verified by the registrar! Please contact registrar or sign with a verified key.");
         }
-        if (!request.verifySignature("X-Gateway-Authorization",getPath().getHeaders(),true)){
+        if (!request.verifySignature("X-Gateway-Authorization", getPath().getHeaders(), true)) {
             throw new RuntimeException("Signature Verification failed");
         }
-        NetworkRole role = NetworkRole.find(new Subscriber(){{
-            setSubscriberId(subscriber_id);
-            setType(Subscriber.SUBSCRIBER_TYPE_BG);
-        }});
+        NetworkRole role = NetworkRole.find(new Subscriber() {
+            {
+                setSubscriberId(subscriber_id);
+                setType(Subscriber.SUBSCRIBER_TYPE_BG);
+            }
+        });
 
-        if (role == null){
-            throw new RuntimeException("Invalid Subscriber : " + subscriber_id) ;
+        if (role == null) {
+            throw new RuntimeException("Invalid Subscriber : " + subscriber_id);
         }
 
-
-        if (!ObjectUtil.equals(role.getNetworkParticipantId() ,signedWithKey.getNetworkParticipantId())){
+        if (!ObjectUtil.equals(role.getNetworkParticipantId(), signedWithKey.getNetworkParticipantId())) {
             throw new RuntimeException("Key signed with is not registered against you. Please contact registrar");
         }
 
-
         Subscribers subscribers = new Subscribers(payload);
-        for (Subscriber subscriber :subscribers) {
-            NetworkRole disabledRole =  NetworkRole.find(subscriber);
+        for (Subscriber subscriber : subscribers) {
+            NetworkRole disabledRole = NetworkRole.find(subscriber);
             disabledRole.setStatus(NetworkRole.SUBSCRIBER_STATUS_UNSUBSCRIBED);
             disabledRole.save();
             subscriber.setStatus(disabledRole.getStatus());
         }
-        return new BytesView(getPath(),subscribers.getInner().toString().getBytes(StandardCharsets.UTF_8),MimeType.APPLICATION_JSON);
+        return new BytesView(getPath(), subscribers.getInner().toString().getBytes(StandardCharsets.UTF_8), MimeType.APPLICATION_JSON);
     }
 
+    @RequireLogin(false)
+    public <T> View setLastInteraction() throws Exception {
+
+        String payload = StringUtil.read(getPath().getInputStream());
+        Request request = new Request(payload);
+        Map<String, String> params = request.extractAuthorizationParams("X-Gateway-Authorization", getPath().getHeaders());
+        if (params.isEmpty()) {
+            throw new RuntimeException("Signature Verification failed");
+        }
+
+        String pub_key_id = params.get("pub_key_id");
+        String subscriber_id = params.get("subscriber_id");
+        ParticipantKey signedWithKey = ParticipantKey.find(pub_key_id);
+        if (!signedWithKey.isVerified()) {
+            throw new RuntimeException("Your signing key is not verified by the registrar! Please contact registrar or sign with a verified key.");
+        }
+        if (!request.verifySignature("X-Gateway-Authorization", getPath().getHeaders(), true)) {
+            throw new RuntimeException("Signature Verification failed");
+        }
+        NetworkRole role = NetworkRole.find(new Subscriber() {
+            {
+                setSubscriberId(subscriber_id);
+                setType(Subscriber.SUBSCRIBER_TYPE_BG);
+            }
+        });
+
+        if (role == null) {
+            throw new RuntimeException("Invalid Subscriber : " + subscriber_id);
+        }
+
+        if (!ObjectUtil.equals(role.getNetworkParticipantId(), signedWithKey.getNetworkParticipantId())) {
+            throw new RuntimeException("Key signed with is not registered against you. Please contact registrar");
+        }
+
+        Subscribers subscribers = new Subscribers(payload);
+        for (Subscriber subscriber : subscribers) {
+            NetworkRole modifiedRole = NetworkRole.find(subscriber);
+            modifiedRole.setLastInteraction(new Date(System.currentTimeMillis()));
+            modifiedRole.save();
+            subscriber.setStatus(modifiedRole.getStatus());
+        }
+        return new BytesView(getPath(), subscribers.getInner().toString().getBytes(StandardCharsets.UTF_8), MimeType.APPLICATION_JSON);
+    }
 
     @RequireLogin(false)
-    public  View register() {
+    public View register() {
 
-        String payload = null ;
+        String payload = null;
         try {
             payload = StringUtil.read(getPath().getInputStream());
-        }catch (Exception ex){
+        } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
-        JSONAware jsonAware =JSONAwareWrapper.parse(payload);
+        JSONAware jsonAware = JSONAwareWrapper.parse(payload);
         Subscribers subscribers = new Subscribers();
-        if (jsonAware instanceof JSONObject){
+        if (jsonAware instanceof JSONObject) {
             subscribers.add(new Subscriber((JSONObject) jsonAware));
-        }else {
+        } else {
             subscribers.setInner((JSONArray) jsonAware);
         }
 
-
-        for (Subscriber subscriber :subscribers){
+        for (Subscriber subscriber : subscribers) {
             NetworkParticipant networkParticipant = NetworkParticipant.find(subscriber.getSubscriberId());
             networkParticipant.save();
 
@@ -140,10 +184,10 @@ public class SubscribersController extends Controller {
             if (!ObjectUtil.isVoid(subscriber.getDomain())) {
                 subscriber.getDomains().add(subscriber.getDomain());
             }
-            if (subscriber.getDomains().isEmpty()){
+            if (subscriber.getDomains().isEmpty()) {
                 role.save();
-                loadRegion(subscriber,role);
-            }else {
+                loadRegion(subscriber, role);
+            } else {
                 for (String domainName : subscriber.getDomains()) {
                     NetworkDomain domain = NetworkDomain.find(domainName);
                     if (!domain.getRawRecord().isNewRecord()) {
@@ -153,7 +197,7 @@ public class SubscribersController extends Controller {
                     }
                     NetworkRole newRole = Database.getTable(NetworkRole.class).getRefreshed(role);
                     newRole.save();
-                    loadRegion(subscriber,newRole);
+                    loadRegion(subscriber, newRole);
                 }
             }
             subscriber.setStatus(Subscriber.SUBSCRIBER_STATUS_INITIATED);
@@ -164,98 +208,100 @@ public class SubscribersController extends Controller {
             key.setEncrPublicKey(Request.getRawEncryptionKey(subscriber.getEncrPublicKey()));
             key.setSigningPublicKey(Request.getRawSigningKey(subscriber.getSigningPublicKey()));
             key = Database.getTable(ParticipantKey.class).getRefreshed(key);
-            if (!key.getRawRecord().isNewRecord() && key.isDirty()){
-                throw  new RuntimeException("Cannot modify key attributes as part of registration");
+            if (!key.getRawRecord().isNewRecord() && key.isDirty()) {
+                throw new RuntimeException("Cannot modify key attributes as part of registration");
             }
             key.setValidFrom(new Timestamp(subscriber.getValidFrom().getTime()));
             key.setValidUntil(new Timestamp(subscriber.getValidTo().getTime()));
             key.save();
 
         }
-        if (subscribers.size() == 1){
-            return new BytesView(getPath(),subscribers.getInner().get(0).toString().getBytes(StandardCharsets.UTF_8),MimeType.APPLICATION_JSON);
-        }else {
-            return new BytesView(getPath(),subscribers.getInner().toString().getBytes(StandardCharsets.UTF_8),MimeType.APPLICATION_JSON);
+        if (subscribers.size() == 1) {
+            return new BytesView(getPath(), subscribers.getInner().get(0).toString().getBytes(StandardCharsets.UTF_8), MimeType.APPLICATION_JSON);
+        } else {
+            return new BytesView(getPath(), subscribers.getInner().toString().getBytes(StandardCharsets.UTF_8), MimeType.APPLICATION_JSON);
         }
     }
 
     @RequireLogin(false)
-    public <T> View subscribe() throws Exception{
+    public <T> View subscribe() throws Exception {
         String payload = StringUtil.read(getPath().getInputStream());
         Request request = new Request(payload);
-        Map<String,String> params = request.extractAuthorizationParams("Authorization",getPath().getHeaders());
-        if (params.isEmpty()){
+        Map<String, String> params = request.extractAuthorizationParams("Authorization", getPath().getHeaders());
+        if (params.isEmpty()) {
             throw new RuntimeException("Signature Verification failed");
         }
 
         String pub_key_id = params.get("pub_key_id");
         String subscriber_id = params.get("subscriber_id");
         ParticipantKey signedWithKey = ParticipantKey.find(pub_key_id);
-        if (!signedWithKey.isVerified()){
+        if (!signedWithKey.isVerified()) {
             throw new RuntimeException("Your signing key is not verified by the registrar! Please contact registrar or sign with a verified key.");
         }
 
         NetworkRole role = NetworkRole.find(subscriber_id);
-        if (!ObjectUtil.equals(role.getNetworkParticipantId() ,signedWithKey.getNetworkParticipantId())){
+        if (!ObjectUtil.equals(role.getNetworkParticipantId(), signedWithKey.getNetworkParticipantId())) {
             throw new RuntimeException("Key signed with is not registered against you. Please contact registrar");
         }
-        if (!request.verifySignature("Authorization",getPath().getHeaders(),true)){
+        if (!request.verifySignature("Authorization", getPath().getHeaders(), true)) {
             throw new RuntimeException("Signature Verification failed");
         }
 
-        JSONAware jsonAware =JSONAwareWrapper.parse(payload);
+        JSONAware jsonAware = JSONAwareWrapper.parse(payload);
         Subscribers subscribers = new Subscribers();
-        if (jsonAware instanceof JSONObject){
+        if (jsonAware instanceof JSONObject) {
             subscribers.add(new Subscriber((JSONObject) jsonAware));
-        }else {
+        } else {
             subscribers.setInner((JSONArray) jsonAware);
         }
 
-        if (subscribers.isEmpty()){
-            if (!ObjectUtil.equals(role.getStatus(),NetworkRole.SUBSCRIBER_STATUS_SUBSCRIBED)){
-                TaskManager.instance().executeAsync(new OnSubscribe(role),false);
+        if (subscribers.isEmpty()) {
+            if (!ObjectUtil.equals(role.getStatus(), NetworkRole.SUBSCRIBER_STATUS_SUBSCRIBED)) {
+                TaskManager.instance().executeAsync(new OnSubscribe(role), false);
             }
             final NetworkRole r = role;
-            return new BytesView(getPath(),new Subscriber(){{
-                setStatus(r.getStatus());
-            }}.toString().getBytes(StandardCharsets.UTF_8),MimeType.APPLICATION_JSON);
-        }else {
+            return new BytesView(getPath(), new Subscriber() {
+                {
+                    setStatus(r.getStatus());
+                }
+            }.toString().getBytes(StandardCharsets.UTF_8), MimeType.APPLICATION_JSON);
+        } else {
             Subscribers outSubscribers = new Subscribers();
-            for (Subscriber subscriber : subscribers){
-                if (subscriber.getDomain() != null && subscriber.getDomains() == null){
+            for (Subscriber subscriber : subscribers) {
+                if (subscriber.getDomain() != null && subscriber.getDomains() == null) {
                     subscriber.setDomains(new Domains());
                     subscriber.getDomains().add(subscriber.getDomain());
                 }
-                if (subscriber.getDomains().isEmpty()){
+                if (subscriber.getDomains().isEmpty()) {
                     subscriber.getDomains().add(null);
                 }
-                if (!ObjectUtil.isVoid(subscriber.getSubscriberId())){
-                    if (!ObjectUtil.equals(subscriber.getSubscriberId(),role.getSubscriberId())){
+                if (!ObjectUtil.isVoid(subscriber.getSubscriberId())) {
+                    if (!ObjectUtil.equals(subscriber.getSubscriberId(), role.getSubscriberId())) {
                         throw new RuntimeException("Cannot sign for a different subscriber!");
                     }
-                }else{
+                } else {
                     subscriber.setSubscriberId(role.getSubscriberId());
                 }
                 boolean newKeyPassed = false;
-                if (!ObjectUtil.isVoid(subscriber.getPubKeyId())){
+                if (!ObjectUtil.isVoid(subscriber.getPubKeyId())) {
                     ParticipantKey keyPassed = ParticipantKey.find(subscriber.getPubKeyId());
-                    newKeyPassed = keyPassed.getRawRecord().isNewRecord() || !keyPassed.isVerified() ;
+                    newKeyPassed = keyPassed.getRawRecord().isNewRecord() || !keyPassed.isVerified();
 
                     if (!ObjectUtil.isVoid(subscriber.getSigningPublicKey())) {
                         keyPassed.setSigningPublicKey(subscriber.getSigningPublicKey());
                     }
-                    if (!ObjectUtil.isVoid(subscriber.getEncrPublicKey())){
+                    if (!ObjectUtil.isVoid(subscriber.getEncrPublicKey())) {
                         keyPassed.setEncrPublicKey(subscriber.getEncrPublicKey());
                     }
 
-                    if (keyPassed.isDirty() && !newKeyPassed ){
+                    if (keyPassed.isDirty() && !newKeyPassed) {
                         throw new RuntimeException("Cannot modify a verified registered key. Please create a new key.");
                     }
                     keyPassed.setNetworkParticipantId(role.getNetworkParticipantId());
-                    if (!ObjectUtil.isVoid(subscriber.getValidFrom())){
+                    if (!ObjectUtil.isVoid(subscriber.getValidFrom())) {
                         keyPassed.setValidFrom(new Timestamp(subscriber.getValidFrom().getTime()));
                     }
-                    if (!ObjectUtil.isVoid(subscriber.getValidTo())){
+                    if (!ObjectUtil.isVoid(subscriber.getValidTo())) {
                         keyPassed.setValidUntil(new Timestamp(subscriber.getValidTo().getTime()));
                     } //Canc change validity
                     keyPassed.save(); //After save triggers on_subscribe
@@ -263,11 +309,13 @@ public class SubscribersController extends Controller {
                 for (String sDomain : subscriber.getDomains()) {
                     Subscriber outSubscriber = new Subscriber(subscriber.toString());
                     long networkParticipantId = role.getNetworkParticipantId();
-                    role = NetworkRole.find(new Subscriber() {{
-                        setSubscriberId(subscriber.getSubscriberId());
-                        setDomain(sDomain);
-                        setType(subscriber.getType());
-                    }});
+                    role = NetworkRole.find(new Subscriber() {
+                        {
+                            setSubscriberId(subscriber.getSubscriberId());
+                            setDomain(sDomain);
+                            setType(subscriber.getType());
+                        }
+                    });
                     role.setNetworkParticipantId(networkParticipantId);
                     if (!ObjectUtil.isVoid(subscriber.getSubscriberUrl())) {
                         role.setUrl(subscriber.getSubscriberUrl());
@@ -288,20 +336,21 @@ public class SubscribersController extends Controller {
             }
             if (outSubscribers.size() != 1) {
                 return new BytesView(getPath(), outSubscribers.getInner().toString().getBytes(StandardCharsets.UTF_8), MimeType.APPLICATION_JSON);
-            }else {
+            } else {
                 return new BytesView(getPath(), outSubscribers.get(0).getInner().toString().getBytes(StandardCharsets.UTF_8), MimeType.APPLICATION_JSON);
             }
         }
     }
-    public void loadRegion(Subscriber subscriber, NetworkRole role){
+
+    public void loadRegion(Subscriber subscriber, NetworkRole role) {
         OperatingRegion region = Database.getTable(OperatingRegion.class).newRecord();
         region.setNetworkRoleId(role.getId());
-        if (!ObjectUtil.isVoid(subscriber.getCity())){
+        if (!ObjectUtil.isVoid(subscriber.getCity())) {
             region.setCityId(City.findByCode(subscriber.getCity()).getId());
             region.setCountryId(region.getCity().getState().getCountryId());
-        }else if (!ObjectUtil.isVoid(subscriber.getCountry())){
+        } else if (!ObjectUtil.isVoid(subscriber.getCountry())) {
             region.setCountryId(Country.findByISO(subscriber.getCountry()).getId());
-        }else {
+        } else {
             return;
         }
 
@@ -311,10 +360,10 @@ public class SubscribersController extends Controller {
     }
 
     @RequireLogin(false)
-    public View lookup() throws Exception{
+    public View lookup() throws Exception {
         String version = "v0";
         String firstElement = getPath().getPathElements().get(0);
-        if (!ObjectUtil.equals(firstElement,getPath().controllerPathElement())){
+        if (!ObjectUtil.equals(firstElement, getPath().controllerPathElement())) {
             version = firstElement;
         }
 
@@ -325,57 +374,53 @@ public class SubscribersController extends Controller {
         }
 
         String format = getPath().getHeaders().get("pub_key_format");
-        if (!ObjectUtil.isVoid(format)){
-            if (!ObjectUtil.equals("PEM",format.toUpperCase())){
+        if (!ObjectUtil.isVoid(format)) {
+            if (!ObjectUtil.equals("PEM", format.toUpperCase())) {
                 throw new RuntimeException("Only allowed value to be passed is PEM");
             }
         }
-        Subscribers records = lookup(subscriber,0,s->{
-            if (!ObjectUtil.isVoid(format)){
+        Subscribers records = lookup(subscriber, 0, s -> {
+            if (!ObjectUtil.isVoid(format)) {
                 s.setSigningPublicKey(Request.getPemSigningKey(s.getSigningPublicKey()));
                 s.setEncrPublicKey(Request.getPemEncryptionKey(s.getEncrPublicKey()));
             }
         });
 
-
-        return new BytesView(getPath(),records.getInner().toString().getBytes(),MimeType.APPLICATION_JSON);
+        return new BytesView(getPath(), records.getInner().toString().getBytes(), MimeType.APPLICATION_JSON);
 
     }
 
     @RequireLogin(false)
-    public View generateSignatureKeys(){
+    public View generateSignatureKeys() {
         CryptoKey key = Database.getTable(CryptoKey.class).newRecord();
 
-        String[] pair = CryptoKey.generateKeyPair(Request.SIGNATURE_ALGO,Request.SIGNATURE_ALGO_KEY_LENGTH);
+        String[] pair = CryptoKey.generateKeyPair(Request.SIGNATURE_ALGO, Request.SIGNATURE_ALGO_KEY_LENGTH);
         key.setPrivateKey(pair[0]);
         key.setPublicKey(pair[1]);
-        return IntegrationAdaptor.instance(CryptoKey.class,FormatHelper.getFormatClass(MimeType.APPLICATION_JSON)).
-                createResponse(getPath(),key, Arrays.asList("PUBLIC_KEY","PRIVATE_KEY"));
+        return IntegrationAdaptor.instance(CryptoKey.class, FormatHelper.getFormatClass(MimeType.APPLICATION_JSON)).
+                createResponse(getPath(), key, Arrays.asList("PUBLIC_KEY", "PRIVATE_KEY"));
 
     }
-
 
     @RequireLogin(false)
-    public View generateEncryptionKeys(){
+    public View generateEncryptionKeys() {
         CryptoKey key = Database.getTable(CryptoKey.class).newRecord();
 
-        String[] pair = CryptoKey.generateKeyPair(Request.ENCRYPTION_ALGO,Request.ENCRYPTION_ALGO_KEY_LENGTH);
+        String[] pair = CryptoKey.generateKeyPair(Request.ENCRYPTION_ALGO, Request.ENCRYPTION_ALGO_KEY_LENGTH);
         key.setPrivateKey(pair[0]);
         key.setPublicKey(pair[1]);
-        return IntegrationAdaptor.instance(CryptoKey.class,FormatHelper.getFormatClass(MimeType.APPLICATION_JSON)).
-                createResponse(getPath(),key, Arrays.asList("PUBLIC_KEY","PRIVATE_KEY"));
+        return IntegrationAdaptor.instance(CryptoKey.class, FormatHelper.getFormatClass(MimeType.APPLICATION_JSON)).
+                createResponse(getPath(), key, Arrays.asList("PUBLIC_KEY", "PRIVATE_KEY"));
 
     }
-
 
     public static Subscribers lookup(Subscriber criteria, int maxRecords, KeyFormatFixer fixer) {
-        return lookup(criteria, maxRecords, null,fixer);
+        return lookup(criteria, maxRecords, null, fixer);
     }
 
-
-    public static List<OperatingRegion> findSubscribedRegions(Subscriber criteria, List<Long> networkRoleIds){
+    public static List<OperatingRegion> findSubscribedRegions(Subscriber criteria, List<Long> networkRoleIds) {
         List<OperatingRegion> regions = new ArrayList<>();
-        if (ObjectUtil.isVoid(criteria.getCity()) && ObjectUtil.isVoid(criteria.getCountry())){
+        if (ObjectUtil.isVoid(criteria.getCity()) && ObjectUtil.isVoid(criteria.getCountry())) {
             return regions;
         }
         //Check Reqion Queries.
@@ -388,7 +433,7 @@ public class SubscribersController extends Controller {
                 cityWhere.add(new Expression(ref.getPool(), "CITY_ID", Operator.EQ, city.getId()));
                 cityWhere.add(new Expression(ref.getPool(), "CITY_ID", Operator.EQ));
                 where.add(cityWhere);
-            }else {
+            } else {
                 return null;
             }
 
@@ -397,7 +442,7 @@ public class SubscribersController extends Controller {
             Country country = Country.findByISO(criteria.getCountry());
             if (country != null) {
                 where.add(new Expression(ref.getPool(), "COUNTRY_ID", Operator.EQ, country.getId()));
-            }else {
+            } else {
                 return null;
             }
         }
@@ -406,16 +451,16 @@ public class SubscribersController extends Controller {
             where.add(new Expression(ref.getPool(), "NETWORK_ROLE_ID", Operator.IN, networkRoleIds.toArray()));
         }
 
-        Select sel = new Select("MAX(ID) AS ID","NETWORK_ROLE_ID").from(OperatingRegion.class).where(where).groupBy("NETWORK_ROLE_ID");
+        Select sel = new Select("MAX(ID) AS ID", "NETWORK_ROLE_ID").from(OperatingRegion.class).where(where).groupBy("NETWORK_ROLE_ID");
         return sel.execute(OperatingRegion.class);
     }
+
     public static Subscribers lookup(Subscriber criteria, int maxRecords, Expression additionalWhere, KeyFormatFixer fixer) {
-        ParticipantKey key = ObjectUtil.isVoid(criteria.getPubKeyId())? null : ParticipantKey.find(criteria.getPubKeyId());
-        if (key != null && key.getRawRecord().isNewRecord()){
+        ParticipantKey key = ObjectUtil.isVoid(criteria.getPubKeyId()) ? null : ParticipantKey.find(criteria.getPubKeyId());
+        if (key != null && key.getRawRecord().isNewRecord()) {
             //invalid key being looked up.
             return new Subscribers();
         }
-
 
         ModelReflector<NetworkRole> ref = ModelReflector.instance(NetworkRole.class);
 
@@ -429,7 +474,7 @@ public class SubscribersController extends Controller {
             searchQry.append("SUBSCRIBER_ID:\"").append(criteria.getSubscriberId()).append("\"");
             where.add(new Expression(ref.getPool(), "SUBSCRIBER_ID", Operator.EQ, criteria.getSubscriberId()));
         }
-        if (key != null && !key.getReflector().isVoid(key.getNetworkParticipantId())){
+        if (key != null && !key.getReflector().isVoid(key.getNetworkParticipantId())) {
             if (searchQry.length() > 0) {
                 searchQry.append(" AND ");
             }
@@ -467,7 +512,7 @@ public class SubscribersController extends Controller {
             where.add(new Expression(ref.getPool(), "STATUS", Operator.EQ, criteria.getStatus()));
         }
         boolean regionPassed = true;
-        if (ObjectUtil.isVoid(criteria.getCity()) && ObjectUtil.isVoid(criteria.getCountry()) ){
+        if (ObjectUtil.isVoid(criteria.getCity()) && ObjectUtil.isVoid(criteria.getCountry())) {
             regionPassed = false;
         }
 
@@ -490,19 +535,19 @@ public class SubscribersController extends Controller {
         for (NetworkRole role : okroles) {
             List<ParticipantKey> participantKeys = new ArrayList<>();
 
-            Subscribers ss = getSubscribers(key,role,null,fixer);
+            Subscribers ss = getSubscribers(key, role, null, fixer);
             if (ss != null) {
-                for (Subscriber s : ss){
+                for (Subscriber s : ss) {
                     subscribers.add(s);
                 }
             }
         }
 
-        if (regionPassed){
-            List<OperatingRegion> subscribedRegions = findSubscribedRegions(criteria,networkRoleIds);
-            if (subscribedRegions == null){
+        if (regionPassed) {
+            List<OperatingRegion> subscribedRegions = findSubscribedRegions(criteria, networkRoleIds);
+            if (subscribedRegions == null) {
                 subscribers.clear();
-            }else {
+            } else {
                 Set<Long> finalNetworkRoleIds = subscribedRegions.stream().map(OperatingRegion::getNetworkRoleId).collect(Collectors.toSet());
 
                 List<NetworkRole> regionMatchingSubscriptions = new Select().from(NetworkRole.class).
@@ -510,7 +555,7 @@ public class SubscribersController extends Controller {
                                 finalNetworkRoleIds.toArray())).execute();
 
                 for (NetworkRole networkRole : regionMatchingSubscriptions) {
-                    Subscribers ss = getSubscribers(key, networkRole, null,fixer);
+                    Subscribers ss = getSubscribers(key, networkRole, null, fixer);
                     if (ss != null) {
                         for (Subscriber s : ss) {
                             subscribers.add(s);
@@ -520,35 +565,37 @@ public class SubscribersController extends Controller {
             }
         }
 
-
         return subscribers;
     }
+
     public interface KeyFormatFixer {
+
         public void fix(Subscriber subscriber);
     }
-    static Subscribers getSubscribers(ParticipantKey criteriaKey , NetworkRole networkRole, OperatingRegion region, KeyFormatFixer fixer) {
+
+    static Subscribers getSubscribers(ParticipantKey criteriaKey, NetworkRole networkRole, OperatingRegion region, KeyFormatFixer fixer) {
         //ParticipantKey key = null;
-        if (Config.instance().getBooleanProperty("beckn.require.kyc",false)){
-            if (!networkRole.getNetworkParticipant().isKycComplete()){
+        if (Config.instance().getBooleanProperty("beckn.require.kyc", false)) {
+            if (!networkRole.getNetworkParticipant().isKycComplete()) {
                 return null;
             }
         }
 
-        List<ParticipantKey> keys ;
-        if (criteriaKey != null){
+        List<ParticipantKey> keys;
+        if (criteriaKey != null) {
             keys = new ArrayList<>();
             keys.add(criteriaKey);
-        }else {
+        } else {
             keys = networkRole.getNetworkParticipant().getParticipantKeys();
             long now = System.currentTimeMillis();
             keys.removeIf(k -> !k.isVerified() || k.getValidUntil().getTime() < now || k.getValidFrom().getTime() > now);// Remove expired keys and keys not yet become valid.
             keys.sort((k1, k2) -> (int) DateUtils.compareToMillis(k2.getValidFrom(), k1.getValidFrom()));
         }
-        if (keys.isEmpty()){
+        if (keys.isEmpty()) {
             return null;
-        }else {
+        } else {
             Subscribers subscribers = new Subscribers();
-            for (ParticipantKey key : keys){
+            for (ParticipantKey key : keys) {
                 Subscriber subscriber = getSubscriber(networkRole, region, key);
                 fixer.fix(subscriber);
                 subscribers.add(subscriber);
@@ -565,7 +612,7 @@ public class SubscribersController extends Controller {
         subscriber.setSubscriberUrl(networkRole.getUrl());
         subscriber.setStatus(networkRole.getStatus());
         NetworkDomain networkDomain = networkRole.getNetworkDomain();
-        if ( networkDomain != null ) {
+        if (networkDomain != null) {
             subscriber.setDomain(networkDomain.getName());
         }
         subscriber.setType(networkRole.getType());
@@ -573,15 +620,15 @@ public class SubscribersController extends Controller {
         subscriber.setEncrPublicKey(key.getEncrPublicKey());
 
         subscriber.setPubKeyId(key.getKeyId());
-        subscriber.setValidFrom(key.getValidFrom()) ;
+        subscriber.setValidFrom(key.getValidFrom());
         subscriber.setValidTo(key.getValidUntil());
-        if (region != null ) {
-            City city =  region.getCity();
-            if (city != null){
+        if (region != null) {
+            City city = region.getCity();
+            if (city != null) {
                 subscriber.setCity(region.getCity().getName());
             }
             Country country = region.getCountry();
-            if (country != null){
+            if (country != null) {
                 subscriber.setCountry(region.getCountry().getName());
             }
         }
